@@ -39,7 +39,7 @@ void *get_in_addr(struct sockaddr *sa)
 
 char* concat(const char *s1, const char *s2, const char *s3)
 {
-    char *result = malloc(strlen(s1)+strlen(s2)+strlen(s3)+1);//+1 for the zero-terminator
+    char *result = malloc(strlen(s1)+strlen(s2)+strlen(s3)+1); //+1 for the zero-terminator
     //in real code you would check for errors in malloc here
     strcpy(result, s1);
     strcat(result, s2);

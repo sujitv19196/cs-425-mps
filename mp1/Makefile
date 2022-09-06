@@ -40,7 +40,7 @@ server: $(SERVEROBJECTS)
 #In this case, CLIENTOBJECTS is just obj/client.o. So, if obj/client.o doesn't exist or is out of date, 
 #make will first look for a rule to build it. That rule is the 'obj/%.o' one, below; the % is a wildcard.
 client: $(CLIENTOBJECTS)
-	$(CC) $(COMPILERFLAGS) $^ -o $@ $(LINKLIBS)
+	$(CXX) $(COMPILERFLAGS) $^ -o $@ $(LINKLIBS)
 
 
 
@@ -52,6 +52,9 @@ clean :
 #The % sign means "match one or more characters". You specify it in the target, and when a file
 #dependency is checked, if its name matches this pattern, this rule is used. You can also use the % 
 #in your list of dependencies, and it will insert whatever characters were matched for the target name.
+obj/%.o: src/%.cpp
+	$(CXX) $(COMPILERFLAGS) -c -o $@ $<
+
 obj/%.o: src/%.c
 	$(CC) $(COMPILERFLAGS) -c -o $@ $<
 obj:
