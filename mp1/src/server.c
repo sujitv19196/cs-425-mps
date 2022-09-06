@@ -21,9 +21,14 @@
 
 #define BACKLOG 10	 // how many pending connections queue will hold
 
-void sigchld_handler(int s)
+int running = 1; 
+
+void sig_handler(int s)
 {
-	while(waitpid(-1, NULL, WNOHANG) > 0);
+    //if (s == SIGCHLD) 	
+        //while(waitpid(-1, NULL, WNOHANG) > 0);
+    //else if (s == SIGINT) 
+    running = 0;
 }
 
 // get sockaddr, IPv4 or IPv6:
@@ -156,22 +161,24 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	sa.sa_handler = sigchld_handler; // reap all dead processes
+	sa.sa_handler = sig_handler; 
 	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+	//if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+	//	perror("sigaction");
+	//	exit(1);
+	//}
+	if (sigaction(SIGINT, &sa, NULL) == -1) {
 		perror("sigaction");
 		exit(1);
 	}
 
 	printf("server: waiting for connections...\n");
 
-	while(1) {  // main accept() loop
+	while(running) {  // main accept() loop
 		sin_size = sizeof their_addr;
 		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
 		if (new_fd == -1) {
-			perror("accept");
-			continue;
+			break;
 		}
 
 		inet_ntop(their_addr.ss_family,
@@ -186,9 +193,10 @@ int main(int argc, char *argv[])
 			close(new_fd);
 			exit(0);
 		}
-		close(new_fd);  // parent doesn't need this
+		close(new_fd);  
 	}
-
+    close(sockfd); 
+	printf("closed server\n"); 
 	return 0;
 }
 
