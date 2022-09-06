@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -14,21 +16,16 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <assert.h>
-
-#define PORT "3490"  // the port users will be connecting to
-#define SERVERPORT "4950" // Server for talking
 
 #define BACKLOG 10	 // how many pending connections queue will hold
+#define PORT "4000"
 
-int running = 1; 
+int loop = 1; 
 
-void sig_handler(int s)
+void sigchld_handler(int s)
 {
-    //if (s == SIGCHLD) 	
-        //while(waitpid(-1, NULL, WNOHANG) > 0);
-    //else if (s == SIGINT) 
-    running = 0;
+    if (s == SIGINT) 
+        loop  = 0; 
 }
 
 // get sockaddr, IPv4 or IPv6:
@@ -41,72 +38,8 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-
-char* concat(const char *s1, const char *s2, const char *s3)
-{
-    char *result = malloc(strlen(s1)+strlen(s2)+strlen(s3)+1); //+1 for the zero-terminator
-    //in real code you would check for errors in malloc here
-    strcpy(result, s1);
-    strcat(result, s2);
-    strcat(result, s3);
-    return result;
-}
-
-
 int main(int argc, char *argv[])
 {
-
-	if (argc != 2) {
-	    fprintf(stderr,"File Name not specified\n");
-	    exit(1);
-	}
-
-	//char ch;
-
-	FILE *fptr;
-	fptr = fopen(argv[1],"r");
-	fseek(fptr, 0, SEEK_END);
-	unsigned long len = (unsigned long)ftell(fptr);	
-	fseek (fptr, 0, SEEK_SET);
-
-	char *string = malloc(len+1);
-	fread(string,len,1,fptr);
-	string[len] = 0;
-
-	// Need to send len-1 as length 
-
-	//printf("%zu\n",len);	
-
-	const int n_temp = snprintf(NULL, 0, "%lu", len);
-	assert(n_temp > 0);
-	char buf_temp[n_temp+1];
-	int c_temp = snprintf(buf_temp, n_temp+1, "%lu", len);
-	assert(buf_temp[n_temp] == '\0');
-	assert(c_temp == n_temp);
-
-	//printf("\n\n%s\n\n",buf_temp);
-
-	if (fptr == NULL)
-        {
-    	    printf("Cannot open file \n");
-    	    exit(0);
-    	}
-
-	
-	//while(*string != '\0'){
-	//	printf("%c",*string++);
-	//}		
-
-    	fclose(fptr);	
-
-	//printf("\n\n %s \n\n", buf_temp);
-	//printf("\n\n %s", &string[0]);
-
-
-	char* result = concat(buf_temp,"\n\n\n", &string[0]);	
-
-	//printf("\n\n\nStart here\n%s",result);
-
 	int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
 	struct addrinfo hints, *servinfo, *p;
 	struct sockaddr_storage their_addr; // connector's address information
@@ -115,9 +48,14 @@ int main(int argc, char *argv[])
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
-
+    
+    if (argc != 2) {
+        fprintf(stderr,"usage: server logfile\n");
+        exit(1);
+    }
+   
 	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;
+	hints.ai_family = AF_INET;;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
@@ -161,24 +99,22 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	sa.sa_handler = sig_handler; 
+	sa.sa_handler = sigchld_handler; // reap all dead processes
 	sigemptyset(&sa.sa_mask);
-	//if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-	//	perror("sigaction");
-	//	exit(1);
-	//}
-	if (sigaction(SIGINT, &sa, NULL) == -1) {
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGCHLD, &sa, NULL) == -1) {
 		perror("sigaction");
 		exit(1);
 	}
 
 	printf("server: waiting for connections...\n");
 
-	while(running) {  // main accept() loop
+	while(loop) {  // main accept() loop
 		sin_size = sizeof their_addr;
 		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
 		if (new_fd == -1) {
-			break;
+			perror("accept");
+			continue;
 		}
 
 		inet_ntop(their_addr.ss_family,
@@ -187,16 +123,36 @@ int main(int argc, char *argv[])
 		printf("server: got connection from %s\n", s);
 
 		if (!fork()) { // this is the child process
-			close(sockfd); // child doesn't need the listener
-			if (send(new_fd,result, strlen(result), 0) == -1)
-				perror("send");
+			close(sockfd); 
+            // read the grep request  
+            char* request = NULL;
+            char buffer[4096];
+            
+            memset(buffer, 0, sizeof buffer);  
+            int num_read = recv(new_fd, buffer, sizeof buffer, 0);
+            if (num_read == -1) {
+                perror("recv"); 
+                exit(1);
+            }
+            request = strndup(buffer, num_read); 
+        
+
+            // parse grep request 
+            printf("%s\n", request);
+
+            // run grep command 
+
+            // send grep result back to client 
+            char* s = "from server";
+            send(new_fd, s, strlen(s), 0);
+
+            free(request);
 			close(new_fd);
 			exit(0);
 		}
-		close(new_fd);  
+		close(new_fd);  // parent doesn't need this
 	}
-    close(sockfd); 
-	printf("closed server\n"); 
+    close(sockfd);
 	return 0;
 }
 
