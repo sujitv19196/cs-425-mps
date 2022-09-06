@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
             // run grep command 
 
             // send grep result back to client 
-            char* s = "from server";
+            char* s = "Server successfully recieved client's response.";
             send(new_fd, s, strlen(s), 0);
 
             free(request);
