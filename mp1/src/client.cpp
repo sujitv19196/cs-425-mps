@@ -26,8 +26,8 @@
 #define NUM_VMS 2
 
 struct thread_data {
-	std::string ip; 
-	std::string grep_command; 
+	char* ip; 
+	char* grep_command; 
 };
 
 // get sockaddr, IPv4 or IPv6:
@@ -50,9 +50,11 @@ void* server_connect (void* arg) {
 	hints.ai_socktype = SOCK_STREAM;
 
 	thread_data *data = (thread_data*)arg; 
-	std::string grep = data->grep_command;
-	if ((rv = getaddrinfo(data->ip.c_str() , PORT, &hints, &servinfo)) != 0) {
+	std::string grep(data->grep_command);
+	if ((rv = getaddrinfo(data->ip , PORT, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		free(data->ip);
+		free(data->grep_command);
 		free(data);
 		return (void*) -1;
 	}
@@ -75,6 +77,8 @@ void* server_connect (void* arg) {
 
 	if (p == NULL) {
 		fprintf(stderr, "client: failed to connect\n");
+		free(data->ip);
+		free(data->grep_command);
 		free(data);
 		return (void*) -1;
 	}
@@ -93,6 +97,9 @@ void* server_connect (void* arg) {
 								bytes_left, 0); 
 		if (s == -1) {
 			perror("send");
+		        free(data->ip);
+	  	        free(data->grep_command);
+		        free(data);
 			return (void*) -1; 
 		}
 		total_bytes_sent += s; 
@@ -108,6 +115,8 @@ void* server_connect (void* arg) {
 		int num_recv = recv(sockfd, buffer, buffer_size, 0);
 		if (num_recv == -1) {
 	    	perror("recv");
+		free(data->ip);
+		free(data->grep_command);
 		free(data); 
 	    	return (void*) -1;
 		}	
@@ -118,6 +127,8 @@ void* server_connect (void* arg) {
 		memset(buffer, 0, buffer_size);
 	}
 	close(sockfd);
+	free(data->ip); 
+	free(data->grep_command); 
 	free(data);
 	char* grep_return_c = strdup(grep_return.c_str());
 	return grep_return_c;
@@ -145,8 +156,8 @@ int main(int argc, char *argv[]) {
 	void* return_values[NUM_VMS];
 	for (int i = 0; i < NUM_VMS; i++) {
 		thread_data *data = (thread_data*)  malloc(sizeof(thread_data));
-		data->ip = server_ips[i].c_str();
-		data->grep_command = grep; 
+		data->ip = strdup(server_ips[i].c_str());
+		data->grep_command = strdup(grep.c_str()); 
 		pthread_create(&threads[i], NULL, server_connect, (void*)data);
 	}
 	for (int i = 0; i < NUM_VMS; i++) {
