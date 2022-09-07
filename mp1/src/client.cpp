@@ -147,11 +147,12 @@ int main(int argc, char *argv[]) {
 	}
 	for (int i = 0; i < NUM_VMS; i++) {
 		pthread_join(threads[i], &return_values[i]);
-		printf("%s\n", (char*)return_values[0]);
-	}
-
-	for (int i = 0; i < NUM_VMS; i++) {
-		free(return_values[i]);
+		if ((int)(size_t)return_values[i] == -1) {
+			printf("Server %d did not respond\n", i);
+		} else {
+			printf("%s\n", (char*)return_values[i]);
+			free(return_values[i]);
+		}
 	}
 	return 0;
 }
