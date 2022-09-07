@@ -12,16 +12,23 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <assert.h>
-
 #include <arpa/inet.h>
 
-#define LISTENPORT "4950"	// the port users will be connecting to
+#include <vector>
+#include <string> 
 
 #define MAXBUFLEN 100
 
+#define MAXDATASIZE 100 // max number of bytes we can get at once 
+
 #define PORT "4000" // the port client will be connecting to 
 
-#define MAXDATASIZE 100 // max number of bytes we can get at once 
+#define NUM_VMS 1
+
+struct thread_data {
+	std::string ip; 
+	std::string grep_command; 
+};
 
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -33,26 +40,20 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int main(int argc, char *argv[])
-{
-	int sockfd, numbytes;  
-	char buf[MAXDATASIZE];
+void* server_connect (void* arg) {
+	int sockfd;
 	struct addrinfo hints, *servinfo, *p;
 	int rv;
 	char s[INET6_ADDRSTRLEN];
-
-	if (argc != 2) {
-	    fprintf(stderr,"usage: client grep_request\n");
-	    exit(1);
-	}
-
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 
-	if ((rv = getaddrinfo("localhost", PORT, &hints, &servinfo)) != 0) {
+	thread_data data = *((thread_data*)arg); 
+	std::string grep = data.grep_command;
+	if ((rv = getaddrinfo(data.ip.c_str() , PORT, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return 1;
+		return (void*) -1;
 	}
 
 	// loop through all the results and connect to the first we can
@@ -73,7 +74,7 @@ int main(int argc, char *argv[])
 
 	if (p == NULL) {
 		fprintf(stderr, "client: failed to connect\n");
-		return 2;
+		return (void*) -1;
 	}
 
 	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
@@ -83,29 +84,76 @@ int main(int argc, char *argv[])
 	freeaddrinfo(servinfo); // all done with this structure
 
 
-	int bytes_left = strlen(argv[1]);
-	char* grep = strdup(argv[1]);
-	printf("%s\n", grep);
+	int bytes_left = strlen(grep.c_str());
+	int bytes_sent = 0;
+	printf("%s\n", grep.c_str());
 	while (bytes_left) {
-		int bytes_sent = send(sockfd, grep, bytes_left, 0); 
-		if (bytes_sent == -1) {
+		int s = send(sockfd, grep.c_str() + bytes_sent, 
+								bytes_left - bytes_sent, 0); 
+		if (s == -1) {
 			perror("send");
-			return 1; 
+			return (void*) -1; 
 		}
+		bytes_sent += s; 
 		bytes_left -= bytes_sent;
 	}
 	printf("sent request\n");
 	
-	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
+	std::string grep_return; 
+	size_t buffer_size = 4096; 
+	char buffer[buffer_size];
+	memset(buffer, 0, buffer_size);
+	while(1) {
+		int num_recv = recv(sockfd, buffer, buffer_size, 0);
+		if (num_recv == -1) {
+	    	perror("recv");
+	    	return (void*) -1;
+		}	
+		if (num_recv == 0) {
+			break;
+		}
+		grep_return += buffer;
+		memset(buffer, 0, buffer_size);
+	}
+	printf("%s\n", grep_return.c_str());
+	close(sockfd);
+	char* grep_return_c = strdup(grep_return.c_str());
+	return grep_return_c;
+}
+
+int main(int argc, char *argv[]) {
+	if (argc < 2) {
+	    fprintf(stderr,"usage: client grep_request\n");
 	    exit(1);
 	}
 
-	buf[numbytes] = '\0';
-	printf("%s\n", buf);
+	std::string grep = argv[1];
+	for (int i = 2; i < argc; i++) {
+		grep += " ";
+		grep += argv[i];
+	}
 
-	close(sockfd);
+	// TODO add list of vm ips 
+	std::string server_ips[NUM_VMS]; 
+	server_ips[0] = "localhost";
+	
+	// create thread for each server we want to connect to 
+	pthread_t threads[NUM_VMS];
+	void* return_values[NUM_VMS];
+	for (int i = 0; i < NUM_VMS; i++) {
+		thread_data data;
+		data.ip = server_ips[i]; 
+		data.grep_command = grep; 
+		pthread_create(&threads[i], NULL, server_connect, (void*)&data);
+	}
+	for (int i = 0; i < NUM_VMS; i++) {
+		pthread_join(threads[i], &return_values[i]);
+	}
+	printf("%s\n", (char*)return_values[0]);
 
+	for (int i = 0; i < NUM_VMS; i++) {
+		free(return_values[i]);
+	}
 	return 0;
 }
 

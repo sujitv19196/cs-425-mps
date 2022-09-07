@@ -1,5 +1,8 @@
 #If you use threads, add -pthread here.
-COMPILERFLAGS = -g -Wall -Wextra -Wno-sign-compare
+CFLAGS = -g -Wall -Wextra -Wno-sign-compare -pthread
+CPPFLAGS= -std=c++11 -g -Wall -Wextra -Wno-sign-compare -pthread -I/sw/include/root
+LDLIBS=$(shell root-config --libs)
+
 
 #Any libraries you might need linked in.
 #LINKLIBS = -lm
@@ -40,20 +43,19 @@ server: $(SERVEROBJECTS)
 #In this case, CLIENTOBJECTS is just obj/client.o. So, if obj/client.o doesn't exist or is out of date, 
 #make will first look for a rule to build it. That rule is the 'obj/%.o' one, below; the % is a wildcard.
 client: $(CLIENTOBJECTS)
-	$(CXX) $(COMPILERFLAGS) $^ -o $@ $(LINKLIBS)
+	$(CXX) $(CPPFLAGS) $^ -o $@ $(LINKLIBS) 
 
 
 
 #RM is a built-in variable that defaults to "rm -f".
 clean :
-	$(RM) obj/*.o server client talker listener
-
+	$(RM) obj/*.o server client 
 #$<: the first dependency in the list; here, src/%.c. (Of course, we could also have used $^).
 #The % sign means "match one or more characters". You specify it in the target, and when a file
 #dependency is checked, if its name matches this pattern, this rule is used. You can also use the % 
 #in your list of dependencies, and it will insert whatever characters were matched for the target name.
 obj/%.o: src/%.cpp
-	$(CXX) $(COMPILERFLAGS) -c -o $@ $<
+	$(CXX) $(CPPFLAGS) -c -o $@ $<
 
 obj/%.o: src/%.c
 	$(CC) $(COMPILERFLAGS) -c -o $@ $<
