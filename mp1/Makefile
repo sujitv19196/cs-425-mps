@@ -29,7 +29,7 @@ all : obj server client
 #$^: the entire dependency string (after expansions); here, $(SERVEROBJECTS)
 #CC is a built in variable for the default C compiler; it usually defaults to "gcc". (CXX is g++).
 server: $(SERVEROBJECTS)
-	$(CC) $(COMPILERFLAGS) $^ -o $@ $(LINKLIBS)
+	$(CXX) $(CPPFLAGS) $^ -o $@ $(LINKLIBS)
 
 
 
@@ -58,7 +58,7 @@ obj/%.o: src/%.cpp
 	$(CXX) $(CPPFLAGS) -c -o $@ $<
 
 obj/%.o: src/%.c
-	$(CC) $(COMPILERFLAGS) -c -o $@ $<
+	$(CC) $(CPPFLAGS) -c -o $@ $<
 obj:
 	mkdir -p obj
 
