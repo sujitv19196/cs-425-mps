@@ -138,7 +138,6 @@ int main(int argc, char *argv[])
             }
             request = strndup(buffer, num_read); 
         
-
             // parse grep request 
             printf("%s\n", request);
 
@@ -146,7 +145,7 @@ int main(int argc, char *argv[])
 
             // send grep result back to client 
             std::string s = "Server successfully recieved client's response.";
-            send(new_fd, s.c_str(), s.length(), 0);
+			send(new_fd, s.c_str(), s.length(), 0);
 
             free(request);
 			close(new_fd);

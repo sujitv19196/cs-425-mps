@@ -23,7 +23,7 @@
 
 #define PORT "4000" // the port client will be connecting to 
 
-#define NUM_VMS 1
+#define NUM_VMS 2
 
 struct thread_data {
 	std::string ip; 
@@ -86,7 +86,6 @@ void* server_connect (void* arg) {
 
 	int bytes_left = strlen(grep.c_str());
 	int bytes_sent = 0;
-	printf("%s\n", grep.c_str());
 	while (bytes_left) {
 		int s = send(sockfd, grep.c_str() + bytes_sent, 
 								bytes_left - bytes_sent, 0); 
@@ -115,7 +114,6 @@ void* server_connect (void* arg) {
 		grep_return += buffer;
 		memset(buffer, 0, buffer_size);
 	}
-	printf("%s\n", grep_return.c_str());
 	close(sockfd);
 	char* grep_return_c = strdup(grep_return.c_str());
 	return grep_return_c;
@@ -136,6 +134,7 @@ int main(int argc, char *argv[]) {
 	// TODO add list of vm ips 
 	std::string server_ips[NUM_VMS]; 
 	server_ips[0] = "localhost";
+	server_ips[1] = "localhost";
 	
 	// create thread for each server we want to connect to 
 	pthread_t threads[NUM_VMS];
@@ -148,8 +147,8 @@ int main(int argc, char *argv[]) {
 	}
 	for (int i = 0; i < NUM_VMS; i++) {
 		pthread_join(threads[i], &return_values[i]);
+		printf("%s\n", (char*)return_values[0]);
 	}
-	printf("%s\n", (char*)return_values[0]);
 
 	for (int i = 0; i < NUM_VMS; i++) {
 		free(return_values[i]);
