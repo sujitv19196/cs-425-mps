@@ -55,7 +55,9 @@ int main(int argc, char *argv[])
         fprintf(stderr,"usage: server logfile\n");
         exit(1);
     }
-   
+
+	char* logfile = argv[1];
+
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_INET;;
 	hints.ai_socktype = SOCK_STREAM;
@@ -127,27 +129,42 @@ int main(int argc, char *argv[])
 		if (!fork()) { // this is the child process
 			close(sockfd); 
             // read the grep request  
-            char* request = NULL;
             char buffer[4096];
-            
             memset(buffer, 0, sizeof buffer);  
-            int num_read = recv(new_fd, buffer, sizeof buffer, 0);
+			int num_read = recv(new_fd, buffer, sizeof buffer, 0);
             if (num_read == -1) {
                 perror("recv"); 
                 exit(1);
             }
-            request = strndup(buffer, num_read); 
+            std::string request = buffer;
         
-            // parse grep request 
-            printf("%s\n", request);
+            // form grep request 
+			request += " ";
+			request += logfile;
+            printf("%s\n", request.c_str());
 
             // run grep command 
-
+			FILE *fp = popen(request.c_str(), "r");
+			memset(buffer, 0, sizeof buffer);
+            std::string grep_output;
+			while (fgets(buffer, 1024, fp)) {
+				grep_output += buffer;
+				memset(buffer, 0, sizeof buffer);
+			}
             // send grep result back to client 
-            std::string s = "Server successfully recieved client's response.";
-			send(new_fd, s.c_str(), s.length(), 0);
+			int bytes_left = grep_output.length(); 
+			int total_bytes_sent = 0;
+			while (bytes_left) {
+				int s = send(new_fd, grep_output.c_str() + total_bytes_sent, 
+								bytes_left, 0);
+				if (s == -1) {
+					perror("send");
+					exit(1);
+				}
+				total_bytes_sent += s; 
+				bytes_left -= s;
+			}
 
-            free(request);
 			close(new_fd);
 			exit(0);
 		}

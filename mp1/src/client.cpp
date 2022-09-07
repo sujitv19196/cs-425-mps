@@ -84,17 +84,17 @@ void* server_connect (void* arg) {
 	freeaddrinfo(servinfo); // all done with this structure
 
 
-	int bytes_left = strlen(grep.c_str());
-	int bytes_sent = 0;
+	int bytes_left = grep.length();
+	int total_bytes_sent = 0;
 	while (bytes_left) {
-		int s = send(sockfd, grep.c_str() + bytes_sent, 
-								bytes_left - bytes_sent, 0); 
+		int s = send(sockfd, grep.c_str() + total_bytes_sent, 
+								bytes_left, 0); 
 		if (s == -1) {
 			perror("send");
 			return (void*) -1; 
 		}
-		bytes_sent += s; 
-		bytes_left -= bytes_sent;
+		total_bytes_sent += s; 
+		bytes_left -= s;
 	}
 	printf("sent request\n");
 	
