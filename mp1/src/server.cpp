@@ -151,6 +151,7 @@ int main(int argc, char *argv[])
 				grep_output += buffer;
 				memset(buffer, 0, sizeof buffer);
 			}
+			pclose(fp);
             // send grep result back to client 
 			int bytes_left = grep_output.length(); 
 			int total_bytes_sent = 0;
