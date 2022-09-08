@@ -52,7 +52,7 @@ void* server_connect (void* arg) {
 	thread_data *data = (thread_data*)arg; 
 	std::string grep(data->grep_command);
 	if ((rv = getaddrinfo(data->ip , PORT, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		// fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		free(data->ip);
 		free(data->grep_command);
 		free(data);
@@ -69,14 +69,14 @@ void* server_connect (void* arg) {
 
 		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
-			perror("client: connect");
+			// perror("client: connect");
 			continue;
 		}
 		break;
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "client: failed to connect\n");
+		// fprintf(stderr, "client: failed to connect\n");
 		free(data->ip);
 		free(data->grep_command);
 		free(data);
@@ -85,7 +85,7 @@ void* server_connect (void* arg) {
 
 	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
 			s, sizeof s);
-	printf("client: connecting to %s\n", s);
+	// printf("client: connecting to %s\n", s);
 
 	freeaddrinfo(servinfo); // all done with this structure
 
@@ -96,16 +96,16 @@ void* server_connect (void* arg) {
 		int s = send(sockfd, grep.c_str() + total_bytes_sent, 
 								bytes_left, 0); 
 		if (s == -1) {
-			perror("send");
-		        free(data->ip);
-	  	        free(data->grep_command);
-		        free(data);
+			// perror("send");
+		    free(data->ip);
+	  	    free(data->grep_command);
+		    free(data);
 			return (void*) -1; 
 		}
 		total_bytes_sent += s; 
 		bytes_left -= s;
 	}
-	printf("sent request\n");
+	// printf("sent request\n");
 	
 	std::string grep_return; 
 	size_t buffer_size = 4096; 
@@ -114,10 +114,10 @@ void* server_connect (void* arg) {
 	while(1) {
 		int num_recv = recv(sockfd, buffer, buffer_size, 0);
 		if (num_recv == -1) {
-	    	perror("recv");
-		free(data->ip);
-		free(data->grep_command);
-		free(data); 
+	    	// perror("recv");
+			free(data->ip);
+			free(data->grep_command);
+			free(data); 
 	    	return (void*) -1;
 		}	
 		if (num_recv == 0) {
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 
 	// TODO add list of vm ips 
 	std::string server_ips[NUM_VMS]; 
-	server_ips[0] = "bullshit";
+	server_ips[0] = "localhost";
 	server_ips[1] = "172.22.157.36";
 	
 	// create thread for each server we want to connect to 
@@ -163,9 +163,10 @@ int main(int argc, char *argv[]) {
 	for (int i = 0; i < NUM_VMS; i++) {
 		pthread_join(threads[i], &return_values[i]);
 		if ((int)(size_t)return_values[i] == -1) {
-			printf("Server %d did not respond\n", i);
+			printf("Server %d did not respond\n\n", i);
 		} else {
-			printf("%s\n", (char*)return_values[i]);
+			printf("Respnse from Server %d:\n", i);
+			printf("%s\n\n", (char*)return_values[i]);
 			free(return_values[i]);
 		}
 	}

@@ -141,7 +141,6 @@ int main(int argc, char *argv[])
             // form grep request 
 			request += " ";
 			request += logfile;
-            printf("%s\n", request.c_str());
 
             // run grep command 
 			FILE *fp = popen(request.c_str(), "r");
@@ -165,8 +164,8 @@ int main(int argc, char *argv[])
 				total_bytes_sent += s; 
 				bytes_left -= s;
 			}
-
 			close(new_fd);
+			printf("sent grep output back to client\n");
 			exit(0);
 		}
 		close(new_fd);  // parent doesn't need this
