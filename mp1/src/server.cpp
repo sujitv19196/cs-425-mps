@@ -18,9 +18,13 @@
 #include <signal.h>
 
 #include <string> 
+#include <iostream>
 
 #define BACKLOG 10	 // how many pending connections queue will hold
 #define PORT "4000"
+
+std::string DEFAULT_LOGFILE = "logfiles/logfile_0.txt";
+std::string GREP_OUTPUT_FILE = "temp_grep_output_file.txt";
 
 int loop = 1; 
 
@@ -50,13 +54,6 @@ int main(int argc, char *argv[])
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
-    
-    if (argc != 2) {
-        fprintf(stderr,"usage: server logfile\n");
-        exit(1);
-    }
-
-	char* logfile = argv[1];
 
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
@@ -137,10 +134,7 @@ int main(int argc, char *argv[])
                 exit(1);
             }
             std::string request = buffer;
-        
-            // form grep request 
-			request += " ";
-			request += logfile;
+			std::cout << "Running grep command: |" << request << "|" << std::endl;
 
             // run grep command 
 			FILE *fp = popen(request.c_str(), "r");
@@ -151,6 +145,7 @@ int main(int argc, char *argv[])
 				memset(buffer, 0, sizeof buffer);
 			}
 			pclose(fp);
+
             // send grep result back to client 
 			int bytes_left = grep_output.length(); 
 			int total_bytes_sent = 0;
@@ -165,7 +160,7 @@ int main(int argc, char *argv[])
 				bytes_left -= s;
 			}
 			close(new_fd);
-			printf("sent grep output back to client\n");
+			printf("Sucessfully sent grep output back to client.\n");
 			exit(0);
 		}
 		close(new_fd);  // parent doesn't need this

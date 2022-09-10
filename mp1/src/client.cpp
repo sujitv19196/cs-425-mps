@@ -16,6 +16,8 @@
 
 #include <vector>
 #include <string> 
+#include <iostream>
+#include <fstream>
 
 #define MAXBUFLEN 100
 
@@ -23,7 +25,8 @@
 
 #define PORT "4000" // the port client will be connecting to 
 
-#define NUM_VMS 2
+// Note: This number should be 4 
+#define NUM_VMS 1
 
 struct thread_data {
 	char* ip; 
@@ -90,6 +93,7 @@ void* server_connect (void* arg) {
 	freeaddrinfo(servinfo); // all done with this structure
 
 
+	// Send grep command to server
 	int bytes_left = grep.length();
 	int total_bytes_sent = 0;
 	while (bytes_left) {
@@ -130,6 +134,8 @@ void* server_connect (void* arg) {
 	free(data->ip); 
 	free(data->grep_command); 
 	free(data);
+
+	// Retrieve grep from server
 	char* grep_return_c = strdup(grep_return.c_str());
 	return grep_return_c;
 }
@@ -147,9 +153,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	// TODO add list of vm ips 
+	// Should be 4 VMs in total (including localhost)
 	std::string server_ips[NUM_VMS]; 
 	server_ips[0] = "localhost";
-	server_ips[1] = "172.22.157.36";
+	// server_ips[1] = "172.22.157.36";
 	
 	// create thread for each server we want to connect to 
 	pthread_t threads[NUM_VMS];
@@ -160,13 +167,23 @@ int main(int argc, char *argv[]) {
 		data->grep_command = strdup(grep.c_str()); 
 		pthread_create(&threads[i], NULL, server_connect, (void*)data);
 	}
+
+	// Iterate over all completed threads and write output to file.
 	for (int i = 0; i < NUM_VMS; i++) {
 		pthread_join(threads[i], &return_values[i]);
 		if ((int)(size_t)return_values[i] == -1) {
 			printf("Server %d did not respond\n\n", i);
 		} else {
-			printf("Respnse from Server %d:\n", i);
-			printf("%s\n\n", (char*)return_values[i]);
+			// Create file to write output to
+			std::ofstream of;
+			std::string output_filepath = "outputs/";
+			output_filepath += std::to_string(i);
+			output_filepath += ".txt";
+			of.open(output_filepath);
+			printf("Retrieved response from server %d. Outputting results to \"%s\".\n", i, output_filepath.c_str());
+			of << (char*)return_values[i] << "\n\n";
+			// printf("%s\n\n", (char*)return_values[i]);
+			of.close();
 			free(return_values[i]);
 		}
 	}

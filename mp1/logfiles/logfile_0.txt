@@ -1,3 +1,0 @@
-100 Hello World
-100 I know it's going to be a great day.
-101 Goodbye.
