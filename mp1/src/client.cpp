@@ -26,7 +26,7 @@
 #define PORT "4000" // the port client will be connecting to 
 
 // Note: This number should be 4 
-#define NUM_VMS 1
+#define NUM_VMS 5
 
 struct thread_data {
 	char* ip; 
@@ -153,10 +153,13 @@ int main(int argc, char *argv[]) {
 	}
 
 	// TODO add list of vm ips 
-	// Should be 4 VMs in total (including localhost)
+	// Should be 5 server VMs in total 
 	std::string server_ips[NUM_VMS]; 
-	server_ips[0] = "localhost";
-	// server_ips[1] = "172.22.157.36";
+	server_ips[0] = "172.22.157.36";
+	server_ips[1] = "172.22.159.36";
+	server_ips[2] = "172.22.95.36";
+	server_ips[3] = "172.22.157.37";
+	server_ips[4] = "172.22.159.37";
 	
 	// create thread for each server we want to connect to 
 	pthread_t threads[NUM_VMS];
