@@ -101,14 +101,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	sa.sa_handler = sig_handler; 
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa, NULL) == -1) {
-		perror("sigaction");
-		exit(1);
-	}
-
 	printf("server: waiting for connections...\n");
 
 	while(loop) {  // main accept() loop
