@@ -19,13 +19,8 @@
 #include <iostream>
 #include <fstream>
 
-#define MAXBUFLEN 100
-
-#define MAXDATASIZE 100 // max number of bytes we can get at once 
-
 #define PORT "4000" // the port client will be connecting to 
 
-// Note: This number should be 4 
 #define NUM_VMS 5
 
 struct thread_data {
@@ -43,6 +38,15 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+
+/**
+ * @brief thread function that esablishes connection to server and recevies grep output 
+ * 
+ * @param arg thread_data struct that holds the desired server ip and grep command to run
+ * @return void* 
+ * 	returns either grep output from server or -1 signifying a failed connection
+ * 
+ */
 void* server_connect (void* arg) {
 	int sockfd;
 	struct addrinfo hints, *servinfo, *p;
@@ -55,7 +59,7 @@ void* server_connect (void* arg) {
 	thread_data *data = (thread_data*)arg; 
 	std::string grep(data->grep_command);
 	if ((rv = getaddrinfo(data->ip , PORT, &hints, &servinfo)) != 0) {
-		// fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		free(data->ip);
 		free(data->grep_command);
 		free(data);
@@ -72,14 +76,14 @@ void* server_connect (void* arg) {
 
 		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
-			// perror("client: connect");
+			perror("client: connect");
 			continue;
 		}
 		break;
 	}
 
 	if (p == NULL) {
-		// fprintf(stderr, "client: failed to connect\n");
+		fprintf(stderr, "client: failed to connect\n");
 		free(data->ip);
 		free(data->grep_command);
 		free(data);
@@ -88,9 +92,8 @@ void* server_connect (void* arg) {
 
 	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
 			s, sizeof s);
-	// printf("client: connecting to %s\n", s);
 
-	freeaddrinfo(servinfo); // all done with this structure
+	freeaddrinfo(servinfo); 
 
 
 	// Send grep command to server
@@ -100,7 +103,7 @@ void* server_connect (void* arg) {
 		int s = send(sockfd, grep.c_str() + total_bytes_sent, 
 								bytes_left, 0); 
 		if (s == -1) {
-			// perror("send");
+			perror("send");
 		    free(data->ip);
 	  	    free(data->grep_command);
 		    free(data);
@@ -109,8 +112,8 @@ void* server_connect (void* arg) {
 		total_bytes_sent += s; 
 		bytes_left -= s;
 	}
-	// printf("sent request\n");
 	
+	// receive grep output from server and write to file 
 	std::string grep_return; 
 	size_t buffer_size = 4096; 
 	char buffer[buffer_size];
@@ -118,7 +121,7 @@ void* server_connect (void* arg) {
 	while(1) {
 		int num_recv = recv(sockfd, buffer, buffer_size, 0);
 		if (num_recv == -1) {
-	    	// perror("recv");
+	    	perror("recv");
 			free(data->ip);
 			free(data->grep_command);
 			free(data); 
@@ -135,7 +138,6 @@ void* server_connect (void* arg) {
 	free(data->grep_command); 
 	free(data);
 
-	// Retrieve grep from server
 	char* grep_return_c = strdup(grep_return.c_str());
 	return grep_return_c;
 }
@@ -146,14 +148,14 @@ int main(int argc, char *argv[]) {
 	    exit(1);
 	}
 
+	// form grep command to send to server 
 	std::string grep = argv[1];
 	for (int i = 2; i < argc; i++) {
 		grep += " ";
 		grep += argv[i];
 	}
 
-	// TODO add list of vm ips 
-	// Should be 5 server VMs in total 
+	// List of VM IPs to query 
 	std::string server_ips[NUM_VMS]; 
 	server_ips[0] = "172.22.157.36";
 	server_ips[1] = "172.22.159.36";
@@ -185,7 +187,6 @@ int main(int argc, char *argv[]) {
 			of.open(output_filepath);
 			printf("Retrieved response from server %d. Outputting results to \"%s\".\n", i, output_filepath.c_str());
 			of << (char*)return_values[i] << "\n\n";
-			// printf("%s\n\n", (char*)return_values[i]);
 			of.close();
 			free(return_values[i]);
 		}

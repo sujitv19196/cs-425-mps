@@ -28,7 +28,8 @@ std::string GREP_OUTPUT_FILE = "temp_grep_output_file.txt";
 
 int loop = 1; 
 
-void sigchld_handler(int s)
+// sig handler that turns loop to false 
+void sig_handler(int s)
 {
     if (s == SIGINT) 
         loop  = 0; 
@@ -93,17 +94,17 @@ int main(int argc, char *argv[])
 		return 2;
 	}
 
-	freeaddrinfo(servinfo); // all done with this structure
+	freeaddrinfo(servinfo); 
 
 	if (listen(sockfd, BACKLOG) == -1) {
 		perror("listen");
 		exit(1);
 	}
 
-	sa.sa_handler = sigchld_handler; // reap all dead processes
+	sa.sa_handler = sig_handler; 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+	if (sigaction(SIGINT, &sa, NULL) == -1) {
 		perror("sigaction");
 		exit(1);
 	}
@@ -123,8 +124,9 @@ int main(int argc, char *argv[])
 			s, sizeof s);
 		printf("server: got connection from %s\n", s);
 
-		if (!fork()) { // this is the child process
+		if (!fork()) { // child proc 
 			close(sockfd); 
+
             // read the grep request  
             char buffer[4096];
             memset(buffer, 0, sizeof buffer);  
@@ -163,7 +165,7 @@ int main(int argc, char *argv[])
 			printf("Sucessfully sent grep output back to client.\n");
 			exit(0);
 		}
-		close(new_fd);  // parent doesn't need this
+		close(new_fd); 
 	}
     close(sockfd);
 	return 0;
