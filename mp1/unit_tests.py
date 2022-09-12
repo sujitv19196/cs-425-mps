@@ -26,7 +26,7 @@ def check_grep_result(logfile_filepath, output_filepath, n):
         ct += 1
     return True
 
-# Test 0: Infrequent GREP 
+# Test 0: Infrequent GREP
 # Use logfile 0  
 def unit_test_0():
     print("Running test 0: Infrequent Grep. Only first 100 lines match.")
@@ -46,11 +46,12 @@ def unit_test_0():
         print()
 
     # Print out stats
+    print("Runtimes:", runtimes)
     print("Average runtime:", np.mean(runtimes))
     print("Standard deviation runtime:", np.std(runtimes))
     return run_time
 
-# Test 1: Frequent GREP   
+# Test 1: Frequent GREP  
 # Use logfile 2
 def unit_test_1():
     print("Running test 1: Frequent Grep. First 3743750.")
@@ -68,8 +69,9 @@ def unit_test_1():
         for i in range(VM_COUNT):
             check_grep_result(str.format("logfiles/2.txt", i), str.format("outputs/{}.txt", i), 3743750)
         print()
-        
+       
     # Print out stats
+    print("Runtimes:", runtimes)
     print("Average runtime:", np.mean(runtimes))
     print("Standard deviation runtime:", np.std(runtimes))
     return run_time
@@ -92,8 +94,9 @@ def unit_test_2():
         for i in range(VM_COUNT):
             check_grep_result(str.format("logfiles/3.txt", i), str.format("outputs/{}.txt", i), 200)
         print()
-        
+       
     # Print out stats
+    print("Runtimes:", runtimes)
     print("Average runtime:", np.mean(runtimes))
     print("Standard deviation runtime:", np.std(runtimes))
     return run_time
@@ -119,12 +122,13 @@ def unit_test_3():
         print()
 
     # Print out stats
+    print("Runtimes:", runtimes)
     print("Average runtime:", np.mean(runtimes))
     print("Standard deviation runtime:", np.std(runtimes))
     return run_time
 
 reset_test()
-# unit_test_0()
-# unit_test_1()
-# unit_test_2()
-unit_test_3()
+unit_test_0()
+unit_test_1()
+unit_test_2()
+# unit_test_3()
