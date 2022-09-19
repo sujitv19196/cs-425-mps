@@ -36,6 +36,9 @@ struct communication_data {
     // add fields here if necessary
 };
 
+// TODO Thread to receive pings and send ACKS
+
+
 std::vector<daemon_info> daemon_list;
 
 int main(int argc, char *argv[]) {
@@ -49,5 +52,8 @@ int main(int argc, char *argv[]) {
     } else {
         std::cout << "normal daemon" << std::endl;
     }
+
+    // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
+
 }
 
