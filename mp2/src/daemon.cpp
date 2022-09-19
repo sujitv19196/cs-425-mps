@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
                     MSG_WAITALL, (struct sockaddr *) &servaddr, 
                     &len); // TODO add timeout 
         if (n == -1) {
-            if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
+            if ((errno== EAGAIN) || (errno == EWOULDBLOCK)) {
                 // timeout or leave 
                 printf("no response\n");
             }
