@@ -47,7 +47,7 @@ client: $(CLIENTOBJECTS)
 	$(CXX) $(CPPFLAGS) $^ -o $@ $(LINKLIBS) 
 
 # Do the same thing for daemon
-client: $(DAEMONOBJECTS)
+daemon: $(DAEMONOBJECTS)
 	$(CXX) $(CPPFLAGS) $^ -o $@ $(LINKLIBS) 
 
 
