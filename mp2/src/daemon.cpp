@@ -26,6 +26,7 @@
 #define MSG_CONFIRM 0
 
 #define PING 0 
+#define ACK 1 
 
 int INTRODUCER_IP = 100;
 int running = 1; 
@@ -37,7 +38,7 @@ struct daemon_info {
 };
 
 struct communication_data {
-	char comm_type; 
+	int comm_type; 
 	int from; 
     // add fields here if necessary
 };
@@ -46,7 +47,7 @@ struct communication_data {
 void* recv_pings (void* args) {
     // UDP server addapted from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
     int sockfd; 
-    char buffer[4096];
+    struct communication_data msg;
     struct sockaddr_in servaddr, cliaddr; 
         
     // Creating socket file descriptor 
@@ -71,16 +72,17 @@ void* recv_pings (void* args) {
     } 
         
     socklen_t len = sizeof(cliaddr);  //len is value/result 
-    char* ack = "ACK";
     while(running) {
         printf("waiting for ping\n");
-        memset(buffer, 0, sizeof buffer);
-        int n = recvfrom(sockfd, (char *)buffer, sizeof buffer,  
+        memset(&msg, 0, sizeof(struct communication_data));
+        int n = recvfrom(sockfd, &msg, sizeof(struct communication_data),  
                 MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
                 &len); 
-        buffer[n] = '\0'; 
-        printf("pinged by: %s\n", buffer); 
-        sendto(sockfd, (const char *)ack, strlen(ack),  
+        printf("pinged by: %d\n", msg.from); 
+
+        struct communication_data send_msg; 
+        send_msg.comm_type = ACK; 
+        sendto(sockfd, &send_msg, sizeof(struct communication_data),  
             MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
                 len); 
         printf("ACK sent\n");  
@@ -88,7 +90,7 @@ void* recv_pings (void* args) {
     close(sockfd);
 }
 
-std::vector<daemon_info> daemon_list;
+// std::vector<daemon_info> daemon_list;
 
 int main(int argc, char *argv[]) {
 	if (argc > 2) {
@@ -110,7 +112,6 @@ int main(int argc, char *argv[]) {
    int curr_daemon = 0; 
     while (running) {
         int sockfd; 
-        char buffer[4096]; 
         struct sockaddr_in     servaddr; 
 
         // Creating socket file descriptor 
@@ -123,22 +124,25 @@ int main(int argc, char *argv[]) {
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = inet_addr(daemon_list[curr_daemon].ip); 
+        servaddr.sin_addr.s_addr = inet_addr("localhost"); 
+        // servaddr.sin_addr.s_addr = inet_addr(daemon_list[curr_daemon].ip); 
             
         int n; 
         socklen_t len; 
-        communication_data msg;
-        msg.from = -1; // TODO placeholder 
-        sendto(sockfd, &msg, sizeof(struct communication_data), 
-            NULL, (const struct sockaddr *) &servaddr,  
+        communication_data send_msg;
+        send_msg.comm_type = PING; 
+        send_msg.from = -1; // TODO placeholder 
+        sendto(sockfd, &send_msg, sizeof(struct communication_data), 
+            MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
                 sizeof(servaddr)); 
         
-        communication_data recv; 
-        n = recvfrom(sockfd, &recv, sizeof(struct communication_data),  
-                    NULL, (struct sockaddr *) &servaddr, 
+        communication_data recv_msg; 
+        n = recvfrom(sockfd, &recv_msg, sizeof(struct communication_data),  
+                    MSG_WAITALL, (struct sockaddr *) &servaddr, 
                     &len); // TODO add timeout 
-        buffer[n] = '\0'; 
-        printf("Server : %s\n", buffer); 
+        printf("Server : %d\n", recv_msg.comm_type); 
+
+        //TODO increment ring 
         close(sockfd); 
     }
     
