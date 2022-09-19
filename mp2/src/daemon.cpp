@@ -126,21 +126,35 @@ int main(int argc, char *argv[]) {
         servaddr.sin_port = htons(PORT); 
         servaddr.sin_addr.s_addr = inet_addr("localhost"); 
         // servaddr.sin_addr.s_addr = inet_addr(daemon_list[curr_daemon].ip); 
-            
+        // set recv timeout 
+        struct timeval tv;
+        tv.tv_sec = 1; // timeout of 1 sec 
+        tv.tv_usec = 0;
+        setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
         int n; 
         socklen_t len; 
         communication_data send_msg;
         send_msg.comm_type = PING; 
         send_msg.from = -1; // TODO placeholder 
+        
+        // send PING to target proc 
         sendto(sockfd, &send_msg, sizeof(struct communication_data), 
             MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
                 sizeof(servaddr)); 
         
+        // recv message from proc 
         communication_data recv_msg; 
         n = recvfrom(sockfd, &recv_msg, sizeof(struct communication_data),  
                     MSG_WAITALL, (struct sockaddr *) &servaddr, 
                     &len); // TODO add timeout 
-        printf("Server : %d\n", recv_msg.comm_type); 
+        if (n == -1) {
+            if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
+                // timeout or leave 
+                printf("no response\n");
+            }
+        }
+        // printf("Server : %d\n", recv_msg.comm_type); 
 
         //TODO increment ring 
         close(sockfd); 
