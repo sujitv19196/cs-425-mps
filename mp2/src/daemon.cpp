@@ -15,39 +15,67 @@
 #include <arpa/inet.h>
 #include <arpa/inet.h> 
 #include <netinet/in.h> 
+#include <pthread.h>
 
 #include <vector>
 #include <string> 
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <mutex>
+#include <thread>
 
 // #define NUM_VMS 5
 #define PORT   8080 
 #define MSG_CONFIRM 0
 
+// Message codes
 #define PING 0 
 #define ACK 1 
+#define JOIN 2
+#define LEAVE 3
 
-int INTRODUCER_IP = 100;
-int running = 1; 
-
-struct daemon_info {
+// Structure of messages sent by daemon
+struct message_info {
+    // general info
+    int message_code;
     int timestamp;
-    char* ip;
-    // add fields here if necessary
+    char sender_ip[15];
+
+    // join & leave
+    char daemon_ip[15];
+    size_t position;
 };
 
-struct communication_data {
-	int comm_type; 
-	int from; 
-    // add fields here if necessary
+// Structure of daemon info stored in ring
+struct daemon_info {
+    char ip[15];
+    int timestamp;
 };
 
-// TODO Thread to receive pings and send ACKS
-void* recv_pings (void* args) {
+pthread_mutex_t ring_lock;
+std::vector<daemon_info> ring;  // ring storing all daemons in order; modulo used for indexing
+int running = 1;    // whether the entire system is running
+
+// Function to compare two IP addresses
+bool compare_ip(char* ip1, char* ip2) {
+    return std::string(ip1) == std::string(ip2);
+}
+
+// pthread_mutex_init()
+
+// ptrhead_mutex_lock();
+// // modify vectori here
+// pthread_mutex_unlcok();
+
+// Child thread duties:
+// 1. Receive pings and send acknowledgements
+// 2. Receive joins (and modify ring)
+// 3. Receive leaves (and modify ring)
+void* receive_pings (void* args) {
     // UDP server addapted from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
     int sockfd; 
-    struct communication_data msg;
+    struct message_info msg;
     struct sockaddr_in servaddr, cliaddr; 
         
     // Creating socket file descriptor 
@@ -74,15 +102,15 @@ void* recv_pings (void* args) {
     socklen_t len = sizeof(cliaddr);  //len is value/result 
     while(running) {
         printf("waiting for ping\n");
-        memset(&msg, 0, sizeof(struct communication_data));
-        int n = recvfrom(sockfd, &msg, sizeof(struct communication_data),  
+        memset(&msg, 0, sizeof(struct message_info));
+        int n = recvfrom(sockfd, &msg, sizeof(struct message_info),  
                 MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
                 &len); 
-        printf("pinged by: %d\n", msg.from); 
+        printf("pinged by: %d\n", msg.sender_ip); 
 
-        struct communication_data send_msg; 
-        send_msg.comm_type = ACK; 
-        sendto(sockfd, &send_msg, sizeof(struct communication_data),  
+        struct message_info send_msg; 
+        send_msg.message_code = ACK; 
+        sendto(sockfd, &send_msg, sizeof(struct message_info),  
             MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
                 len); 
         printf("ACK sent\n");  
@@ -90,23 +118,29 @@ void* recv_pings (void* args) {
     close(sockfd);
 }
 
-// std::vector<daemon_info> daemon_list;
+// Main thread duties:
+// 1. Send pings
+// 2. Send failure notices (in case ping times out)
+// 3. Send join notices (in case of introducer)
 
 int main(int argc, char *argv[]) {
+    // Parse arguments
 	if (argc > 2) {
 	    fprintf(stderr, "usage: daemon [-i]\n");
 	    exit(1);
 	}
-
     if (argc == 2) {
         std::cout << "Introducer" << std::endl;
     } else {
         std::cout << "normal daemon" << std::endl;
     }
 
-     // create recv thread to recv pings and send back ACKs 
-    pthread_t recv_thraed; 
-    pthread_create(&recv_thraed, NULL, recv_pings, NULL); // TODO add args 
+    // Initialize mutex
+    pthread_mutex_init(&ring_lock, NULL);
+
+    // Create recv thread to recv pings and send back ACKs 
+    pthread_t receive_thread; 
+    pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
     
     // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
    int curr_daemon = 0; 
@@ -134,18 +168,18 @@ int main(int argc, char *argv[]) {
 
         int n; 
         socklen_t len; 
-        communication_data send_msg;
-        send_msg.comm_type = PING; 
-        send_msg.from = -1; // TODO placeholder 
+        message_info send_msg;
+        send_msg.message_code = PING; 
+        send_msg.sender_ip[0] = 'g'; // TODO placeholder 
         
         // send PING to target proc 
-        sendto(sockfd, &send_msg, sizeof(struct communication_data), 
+        sendto(sockfd, &send_msg, sizeof(struct message_info), 
             MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
                 sizeof(servaddr)); 
         
         // recv message from proc 
-        communication_data recv_msg; 
-        n = recvfrom(sockfd, &recv_msg, sizeof(struct communication_data),  
+        message_info recv_msg; 
+        n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
                     MSG_WAITALL, (struct sockaddr *) &servaddr, 
                     &len); // TODO add timeout 
         if (n == -1) {
@@ -162,6 +196,6 @@ int main(int argc, char *argv[]) {
     
     
     
-    pthread_join(recv_thraed, NULL);
+    pthread_join(receive_thread, NULL);
 }
 
