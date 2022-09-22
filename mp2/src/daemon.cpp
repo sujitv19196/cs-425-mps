@@ -56,20 +56,65 @@ struct daemon_info {
     int timestamp;
 };
 
-pthread_mutex_t ring_lock;
+pthread_mutex_t ring_lock;      // mutex to access & modify ring (there are 2 threads using it: main & child)
 std::vector<daemon_info> ring;  // ring storing all daemons in order; modulo used for indexing
 int running = 1;    // whether the entire system is running
+// keep track of the positions of the 3 targets of the current daemon (basically next 3 in the ring)
+// we are keeping track of these separate from the ring because it's easier to lookup
+int target_0_pos = 0;
+int target_1_pos = 0;
+int target_2_pos = 0;
+size_t current_pos = 0;     // Position of ourself in ring (for easy indexing)
+char ip[IP_SIZE];   // IP address of ourself
 
 // Function to compare two IP addresses
 bool compare_ip(char* ip1, char* ip2) {
     return std::string(ip1) == std::string(ip2);
 }
 
-// pthread_mutex_init()
+// Get the position (index) of a daemon in the vector
+int position_of_daemon(char ip[IP_SIZE]) {
+    pthread_mutex_lock(&ring_lock);
+    for (size_t i = 0; i < ring.size(); i++) {
+        if (compare_ip(ring[i].ip, ip)) {
+            pthread_mutex_unlock(&ring_lock);
+            return i;
+        }
+    }
+    pthread_mutex_unlock(&ring_lock);
+    return -1;
+}
 
-// ptrhead_mutex_lock();
-// // modify vectori here
-// pthread_mutex_unlcok();
+// Function to add daemon to ring
+// Must also update targets
+void add_daemon_to_ring(daemon_info daemon) {
+    pthread_mutex_lock(&ring_lock);
+    ring.push_back(daemon);
+    target_0_pos = (current_pos + 1) % ring.size();
+    target_1_pos = (current_pos + 2) % ring.size();
+    target_2_pos = (current_pos + 3) % ring.size();
+    pthread_mutex_unlock(&ring_lock);
+}
+
+// Function to remove daemon from ring
+// Updates current daemon's position and position of all targets
+// If multiple daemons are called, it is caller's responsibility to keep track of position changes
+void remove_daemon_from_ring_assist(size_t position) {
+    pthread_mutex_lock(&ring_lock);
+    ring.erase(ring.begin() + position);
+    current_pos = position_of_daemon(ip);
+    target_0_pos = (current_pos + 1) % ring.size();
+    target_1_pos = (current_pos + 2) % ring.size();
+    target_2_pos = (current_pos + 3) % ring.size();
+    pthread_mutex_unlock(&ring_lock);
+}
+
+// Wrapper for remove daemon
+// Takes ip address into account to calculate position
+// Position may change during simultaneous deletes
+void remove_daemon_from_ring(char ip[IP_SIZE]) {
+    remove_daemon_from_ring_assist(position_of_daemon(ip));
+}
 
 // Child thread duties:
 // 1. Receive pings and send acknowledgements
@@ -200,5 +245,6 @@ int main(int argc, char *argv[]) {
     
     
     pthread_join(receive_thread, NULL);
+    pthread_mutex_destroy(&ring_lock);
 }
 
