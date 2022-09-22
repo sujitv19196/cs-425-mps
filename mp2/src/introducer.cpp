@@ -56,6 +56,56 @@ std::vector<daemon_info> ring;  // ring storing all daemons in order; modulo use
 int running = 1;    // whether the entire system is running
 
 
+// Function to compare two IP addresses
+bool compare_ip(char* ip1, char* ip2) {
+    return std::string(ip1) == std::string(ip2);
+}
+
+// Get the position (index) of a daemon in the vector
+int position_of_daemon(char ip[IP_SIZE]) {
+    for (size_t i = 0; i < ring.size(); i++) {
+        if (compare_ip(ring[i].ip, ip)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Function to remove daemon from ring
+// Updates current daemon's position and position of all targets
+// If multiple daemons are called, it is caller's responsibility to keep track of position changes
+void remove_daemon_from_ring_assist(size_t position) {
+    ring.erase(ring.begin() + position);
+}
+
+// Wrapper for remove daemon
+// Takes ip address into account to calculate position
+// Position may change during simultaneous deletes
+void remove_daemon_from_ring(char ip[IP_SIZE]) {
+    pthread_mutex_lock(&ring_lock);
+    remove_daemon_from_ring_assist(position_of_daemon(ip));
+    pthread_mutex_unlock(&ring_lock);
+}
+
+void add_daemon_to_ring(message_info recv_msg) {
+    pthread_mutex_lock(&ring_lock); // lock for entire duration because position could chnage on simultaneous leave 
+    // formulate msg to send to all daemons 
+    message_info send_msg = {};
+    send_msg.message_code = JOIN; 
+    send_msg.position = ring.size(); // add to back of ring 
+    send_msg.timestamp = recv_msg.timestamp;
+    strncpy(send_msg.daemon_ip, recv_msg.sender_ip, 16);
+    for (daemon_info daemon : ring) {  // send new add info to all daemons 
+        send_to_daemon(daemon.ip, send_msg);
+    }
+    // add to local ring 
+    daemon_info info = {}; 
+    strncpy(info.ip, recv_msg.sender_ip, 16); 
+    info.timestamp = recv_msg.timestamp; 
+    ring.push_back(info);
+    pthread_mutex_unlock(&ring_lock);
+}
+
 void send_to_daemon(char* ip, message_info send_msg) {
      // create new socket to send
     int sendfd; 
@@ -112,25 +162,9 @@ int main(int argc, char *argv[]) {
 
         // handle recv mesg 
         if (recv_msg.message_code == JOIN) {
-            pthread_mutex_lock(&ring_lock); // lock for entire duration because position could chnage on simultaneous leave 
-            // formulate msg to send to all daemons 
-            message_info send_msg = {};
-            send_msg.message_code = JOIN; 
-            send_msg.position = ring.size(); // add to back of ring 
-            send_msg.timestamp = recv_msg.timestamp;
-            strncpy(send_msg.daemon_ip, recv_msg.sender_ip, 16);
-            // TODO add introcuer ip (not sure we need to do this tho)
-            for (daemon_info daemon : ring) {  // send new add info to all daemons 
-               send_to_daemon(daemon.ip, send_msg);
-            }
-            // add to local ring 
-            daemon_info info = {}; 
-            strncpy(info.ip, recv_msg.sender_ip, 16); 
-            info.timestamp = recv_msg.timestamp; 
-            ring.push_back(info);
-            pthread_mutex_unlock(&ring_lock);
+            add_daemon_to_ring(recv_msg);
         } else if (recv_msg.message_code == LEAVE) {
-            // TODO leave logic copy from daemon.cpp 
+            remove_daemon_from_ring(recv_msg.sender_ip);
         }
         
         close(sockfd); 

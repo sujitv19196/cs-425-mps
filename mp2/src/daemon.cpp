@@ -68,14 +68,11 @@ bool compare_ip(char* ip1, char* ip2) {
 
 // Get the position (index) of a daemon in the vector
 int position_of_daemon(char ip[IP_SIZE]) {
-    pthread_mutex_lock(&ring_lock);
     for (size_t i = 0; i < ring.size(); i++) {
         if (compare_ip(ring[i].ip, ip)) {
-            pthread_mutex_unlock(&ring_lock);
             return i;
         }
     }
-    pthread_mutex_unlock(&ring_lock);
     return -1;
 }
 
@@ -94,20 +91,21 @@ void add_daemon_to_ring(daemon_info daemon) {
 // Updates current daemon's position and position of all targets
 // If multiple daemons are called, it is caller's responsibility to keep track of position changes
 void remove_daemon_from_ring_assist(size_t position) {
-    pthread_mutex_lock(&ring_lock);
     ring.erase(ring.begin() + position);
     current_pos = position_of_daemon(ip);
     targets[0] = (current_pos + 1) % ring.size();
     targets[1] = (current_pos + 2) % ring.size();
     targets[2] = (current_pos + 3) % ring.size();
-    pthread_mutex_unlock(&ring_lock);
 }
 
 // Wrapper for remove daemon
 // Takes ip address into account to calculate position
 // Position may change during simultaneous deletes
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
+        pthread_mutex_lock(&ring_lock);
     remove_daemon_from_ring_assist(position_of_daemon(ip));
+        pthread_mutex_unlock(&ring_lock);
+
 }
 
 // Child thread duties:
@@ -172,9 +170,9 @@ void* receive_pings (void* args) {
 }
 
 // Main thread duties:
-// 1. Send pings
-// 2. Send failure notices (in case ping times out)
-// 3. Send join notices (in case of introducer)
+// 1. Talk to introducer to add itself to system 
+// 2. Send pings 
+// 3. Send failure notices (in case ping times out)
 
 int main(int argc, char *argv[]) {
     // Parse arguments
