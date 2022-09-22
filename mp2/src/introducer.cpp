@@ -22,6 +22,7 @@
 #include <thread>
 
 constexpr int PORT = 8080;
+constexpr int INTRODUCER_PORT = 9080;
 constexpr int MSG_CONFIRM = 0;
 
 // Message codes
@@ -87,38 +88,21 @@ void remove_daemon_from_ring(char ip[IP_SIZE]) {
     pthread_mutex_unlock(&ring_lock);
 }
 
-void send_ring_to_new_daemon(char* ip) {
-    // create new socket to send
-    int sendfd; 
-    struct sockaddr_in sendaddr; 
-
-    // Creating socket file descriptor 
-    if ( (sendfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-        perror("socket creation failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-    memset(&sendaddr, 0, sizeof(sendaddr)); 
-        
-    // Filling server information 
-    sendaddr.sin_family = AF_INET; 
-    sendaddr.sin_port = htons(PORT); 
-    sendaddr.sin_addr.s_addr = inet_addr(ip);
-    
+void send_ring_to_new_daemon(int new_daemon_fd, sockaddr_in cliaddr) {
     // send size of ring 
     size_t ring_size = ring.size();
-    int n = sendto(sendfd, &ring_size, sizeof(size_t), 
-                    MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
-                    sizeof(sendaddr));
+    int n = sendto(new_daemon_fd, &ring_size, sizeof(size_t), 
+                    MSG_CONFIRM, (const struct sockaddr *) &cliaddr,  
+                    sizeof(cliaddr));
     
     daemon_info daemons[ring_size];
     for (int i = 0; i < ring.size(); i++) {
         daemons[i] = ring[i];
     }
-    n = sendto(sendfd, daemons, sizeof(struct daemon_info) * ring_size, 
-                MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
-                sizeof(sendaddr));
+    n = sendto(new_daemon_fd, daemons, sizeof(struct daemon_info) * ring_size, 
+                MSG_CONFIRM, (const struct sockaddr *) &cliaddr,  
+                sizeof(cliaddr));
     // TODO check for sender error
-    close(sendfd);
 }
 
 void send_to_daemon(char* ip, message_info send_msg) {
@@ -145,7 +129,7 @@ void send_to_daemon(char* ip, message_info send_msg) {
     close(sendfd);
 }
 
-void add_daemon_to_ring(message_info recv_msg) {
+void add_daemon_to_ring(message_info recv_msg, int new_daemon_fd, sockaddr_in cliaddr) {
     pthread_mutex_lock(&ring_lock); // lock for entire duration because position could chnage on simultaneous leave 
     // formulate msg to send to all daemons 
     message_info send_msg = {};
@@ -163,7 +147,7 @@ void add_daemon_to_ring(message_info recv_msg) {
     ring.push_back(info);
 
     // send entire ring to new daemon 
-    send_ring_to_new_daemon(recv_msg.sender_ip);
+    send_ring_to_new_daemon(new_daemon_fd, cliaddr);
     pthread_mutex_unlock(&ring_lock);
 }
 
@@ -173,7 +157,7 @@ int main(int argc, char *argv[]) {
     
     while (running) {
         int sockfd; 
-        struct sockaddr_in servaddr; 
+        struct sockaddr_in servaddr, cliaddr; 
 
         // Creating socket file descriptor 
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -181,17 +165,25 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE); 
         } 
         memset(&servaddr, 0, sizeof(servaddr)); 
-            
+        memset(&cliaddr, 0, sizeof(cliaddr)); 
+
         // Filling server information 
-        servaddr.sin_family = AF_INET; 
-        servaddr.sin_port = htons(PORT); 
+        servaddr.sin_family    = AF_INET; // IPv4 
         servaddr.sin_addr.s_addr = INADDR_ANY; 
+        servaddr.sin_port = htons(INTRODUCER_PORT); 
+
+        // Bind the socket with the server address 
+        if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
+            sizeof(servaddr)) < 0 ) { 
+            perror("bind failed"); 
+            exit(EXIT_FAILURE); 
+        } 
                
-        socklen_t len; 
+        socklen_t len = sizeof(cliaddr);
         // recv request from daemons 
         message_info recv_msg = {}; 
         int n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
-                    MSG_WAITALL, (struct sockaddr *) &servaddr, 
+                    MSG_WAITALL, (struct sockaddr *) &cliaddr, 
                     &len); 
         if (n == -1) {
             perror("recv:");
@@ -200,7 +192,7 @@ int main(int argc, char *argv[]) {
         // handle recv mesg 
         if (recv_msg.message_code == JOIN) {
             printf("JOIN RECV\n");
-            add_daemon_to_ring(recv_msg);
+            add_daemon_to_ring(recv_msg, sockfd, cliaddr);
         } else if (recv_msg.message_code == LEAVE) {
             remove_daemon_from_ring(recv_msg.sender_ip);
         }

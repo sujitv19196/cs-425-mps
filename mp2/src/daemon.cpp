@@ -54,7 +54,7 @@ struct daemon_info {
 
 pthread_mutex_t ring_lock;      // mutex to access & modify ring (there are 2 threads using it: main & child)
 std::vector<daemon_info> ring;  // ring storing all daemons in order; modulo used for indexing
-int running = 0;    // whether the entire system is running
+int running = 1;    // whether the entire system is running
 // keep track of the positions of the 3 targets of the current daemon (basically next 3 in the ring)
 // we are keeping track of these separate from the ring because it's easier to lookup
 int targets[3] = {-1, -1, -1}; 
@@ -188,21 +188,22 @@ void ping_introducer(char* vm_ip) {
     servaddr.sin_port = htons(PORT); 
     servaddr.sin_addr.s_addr = inet_addr(introducer_ip); 
     
-    // // set recv timeout 
-    // struct timeval tv;
-    // tv.tv_sec = 1; // timeout of 1 sec 
-    // tv.tv_usec = 0;
-    // setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+    // set recv timeout 
+    struct timeval tv;
+    tv.tv_sec = 1; // timeout of 1 sec 
+    tv.tv_usec = 0;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
     int n; 
     socklen_t len; 
     message_info send_msg;
     send_msg.message_code = JOIN; 
     strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
+    printf("send\n");
     sendto(sockfd, &send_msg, sizeof(struct message_info), 
             MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
                 sizeof(servaddr)); 
-
+    
     // recv size of ring
     size_t ring_size; 
     n = recvfrom(sockfd, &ring_size, sizeof(size_t),  
@@ -281,7 +282,9 @@ int main(int argc, char *argv[]) {
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = inet_addr(ring[curr_daemon].ip); 
+        // servaddr.sin_addr.s_addr = inet_addr(ring[curr_daemon].ip); 
+        servaddr.sin_addr.s_addr = inet_addr("localhost"); 
+
         
         // set recv timeout 
         struct timeval tv;
