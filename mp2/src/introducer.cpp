@@ -21,31 +21,33 @@
 #include <mutex>
 #include <thread>
 
-// #define NUM_VMS 5
-#define PORT   8080 
-#define MSG_CONFIRM 0
+constexpr int PORT = 8080;
+constexpr int MSG_CONFIRM = 0;
 
 // Message codes
-#define PING 0 
-#define ACK 1 
-#define JOIN 2
-#define LEAVE 3
+constexpr char PING = 0;
+constexpr char ACK = 1;
+constexpr char JOIN = 2;
+constexpr char LEAVE = 3;
+
+// Other consts
+constexpr size_t IP_SIZE = 16;
 
 // Structure of messages sent by daemon
 struct message_info {
     // general info
-    int message_code;
-    int timestamp;
-    char sender_ip[16];
+    char message_code;
+    time_t timestamp;
+    char sender_ip[IP_SIZE];
 
     // join & leave
-    char daemon_ip[16];
+    char daemon_ip[IP_SIZE];
     size_t position;
 };
 
 // Structure of daemon info stored in ring
 struct daemon_info {
-    char ip[15];
+    char ip[IP_SIZE];
     int timestamp;
 };
 
@@ -58,10 +60,9 @@ int main(int argc, char *argv[]) {
     
     std::cout << "Introducer" << std::endl;
     
-    int curr_daemon = 0; 
     while (running) {
         int sockfd; 
-        struct sockaddr_in     servaddr; 
+        struct sockaddr_in servaddr; 
 
         // Creating socket file descriptor 
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -73,10 +74,8 @@ int main(int argc, char *argv[]) {
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = inet_addr("localhost"); 
-        // servaddr.sin_addr.s_addr = inet_addr(daemon_list[curr_daemon].ip); 
-       
-        
+        servaddr.sin_addr.s_addr = INADDR_ANY; 
+               
         socklen_t len; 
         // recv request from daemons 
         message_info recv_msg = {}; 
@@ -97,11 +96,28 @@ int main(int argc, char *argv[]) {
             send_msg.timestamp = recv_msg.timestamp;
             strncpy(send_msg.daemon_ip, recv_msg.sender_ip, 16);
             // TODO add introcuer ip (not sure we need to do this tho)
-
             for (daemon_info daemon : ring) {  // send new add info to all daemons 
-                sendto(sockfd, &send_msg, sizeof(struct message_info), 
-                    MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
-                    sizeof(servaddr));
+                // create new socket to send
+                int sendfd; 
+                struct sockaddr_in sendaddr; 
+
+                // Creating socket file descriptor 
+                if ( (sendfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+                    perror("socket creation failed"); 
+                    exit(EXIT_FAILURE); 
+                } 
+                memset(&sendaddr, 0, sizeof(sendaddr)); 
+                    
+                // Filling server information 
+                sendaddr.sin_family = AF_INET; 
+                sendaddr.sin_port = htons(PORT); 
+                sendaddr.sin_addr.s_addr = inet_addr(daemon.ip); 
+            
+                int n = sendto(sendfd, &send_msg, sizeof(struct message_info), 
+                    MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
+                    sizeof(sendaddr));
+                //TODO recv ACK?? 
+                close(sendfd);
             }
             // add to local ring 
             daemon_info info = {}; 
@@ -109,9 +125,10 @@ int main(int argc, char *argv[]) {
             info.timestamp = recv_msg.timestamp; 
             ring.push_back(info);
             pthread_mutex_unlock(&ring_lock);
+        } else if (recv_msg.message_code == LEAVE) {
+            // TODO leave logic 
         }
         
-        
-                
         close(sockfd); 
     }
+}

@@ -12,6 +12,7 @@ LDLIBS=$(shell root-config --libs)
 SERVEROBJECTS = obj/server.o
 CLIENTOBJECTS = obj/client.o
 DAEMONOBJECTS = obj/daemon.o
+INTRODUCEROBJECTS = obj/introducer.o
 
 
 #Every rule listed here as .PHONY is "phony": when you say you want that rule satisfied,
@@ -24,7 +25,7 @@ DAEMONOBJECTS = obj/daemon.o
 #The first rule in the Makefile is the default (the one chosen by plain `make`).
 #Since 'all' is first in this file, both `make all` and `make` do the same thing.
 #(`make obj server client talker listener` would also have the same effect).
-all : obj server client daemon
+all : obj server client daemon introducer
 
 #$@: name of rule's target: server, client, talker, or listener, for the respective rules.
 #$^: the entire dependency string (after expansions); here, $(SERVEROBJECTS)
@@ -50,10 +51,12 @@ client: $(CLIENTOBJECTS)
 daemon: $(DAEMONOBJECTS)
 	$(CXX) $(CPPFLAGS) $^ -o $@ $(LINKLIBS) 
 
+introducer: $(INTRODUCEROBJECTS)
+	$(CXX) $(CPPFLAGS) $^ -o $@ $(LINKLIBS) 
 
 #RM is a built-in variable that defaults to "rm -f".
 clean :
-	$(RM) obj/*.o server client daemon
+	$(RM) obj/*.o server client daemon introducer
 #$<: the first dependency in the list; here, src/%.c. (Of course, we could also have used $^).
 #The % sign means "match one or more characters". You specify it in the target, and when a file
 #dependency is checked, if its name matches this pattern, this rule is used. You can also use the % 
