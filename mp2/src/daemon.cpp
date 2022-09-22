@@ -23,7 +23,7 @@
 
 // #define NUM_VMS 5
 constexpr int PORT = 8080;
-// constexpr int MSG_CONFIRM = 0; // TODO Remove when movve to VMs (only a thing to fix make on mac)
+constexpr int MSG_CONFIRM = 0; // TODO Remove when movve to VMs (only a thing to fix make on mac)
  
 // Message codes
 constexpr char PING = 0;
@@ -60,7 +60,7 @@ int running = 1;    // whether the entire system is running
 int targets[3] = {-1, -1, -1}; 
 size_t current_pos = -1;     // Position of ourself in ring (for easy indexing)
 char ip[IP_SIZE];   // IP address of ourself
-char* introducer_ip = "localhost"; // TODO PLACEHOLDER
+char* introducer_ip = "172.22.159.36"; // TODO PLACEHOLDER
 
 // Function to compare two IP addresses
 bool compare_ip(char* ip1, char* ip2) {
@@ -260,7 +260,7 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&ring_lock, NULL);
 
     // talk to introducer 
-    // ping_introducer(vm_ip);
+    ping_introducer(vm_ip);
 
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 

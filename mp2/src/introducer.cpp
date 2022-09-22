@@ -23,7 +23,7 @@
 
 constexpr int PORT = 8080;
 // constexpr int INTRODUCER_PORT = 9080;
-// constexpr int MSG_CONFIRM = 0;
+constexpr int MSG_CONFIRM = 0;
 
 // Message codes
 constexpr char PING = 0;
@@ -99,7 +99,7 @@ void send_ring_to_new_daemon(int new_daemon_fd, sockaddr_in cliaddr) {
     for (int i = 0; i < ring.size(); i++) {
         daemons[i] = ring[i];
     }
-    n = sendto(new_daemon_fd, daemons, sizeof(struct daemon_info) * ring_size, 
+    n = sendto(new_daemon_fd, daemons, sizeof(daemons), 
                 MSG_CONFIRM, (const struct sockaddr *) &cliaddr,  
                 sizeof(cliaddr));
     // TODO check for sender error
