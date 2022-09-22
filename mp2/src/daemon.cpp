@@ -57,9 +57,7 @@ std::vector<daemon_info> ring;  // ring storing all daemons in order; modulo use
 int running = 1;    // whether the entire system is running
 // keep track of the positions of the 3 targets of the current daemon (basically next 3 in the ring)
 // we are keeping track of these separate from the ring because it's easier to lookup
-int target_0_pos = 0;
-int target_1_pos = 0;
-int target_2_pos = 0;
+int targets[3] = {-1, -1, -1}; 
 size_t current_pos = 0;     // Position of ourself in ring (for easy indexing)
 char ip[IP_SIZE];   // IP address of ourself
 
@@ -86,9 +84,9 @@ int position_of_daemon(char ip[IP_SIZE]) {
 void add_daemon_to_ring(daemon_info daemon) {
     pthread_mutex_lock(&ring_lock);
     ring.push_back(daemon);
-    target_0_pos = (current_pos + 1) % ring.size();
-    target_1_pos = (current_pos + 2) % ring.size();
-    target_2_pos = (current_pos + 3) % ring.size();
+    targets[0] = (current_pos + 1) % ring.size();
+    targets[1] = (current_pos + 2) % ring.size();
+    targets[2] = (current_pos + 3) % ring.size();
     pthread_mutex_unlock(&ring_lock);
 }
 
@@ -99,9 +97,9 @@ void remove_daemon_from_ring_assist(size_t position) {
     pthread_mutex_lock(&ring_lock);
     ring.erase(ring.begin() + position);
     current_pos = position_of_daemon(ip);
-    target_0_pos = (current_pos + 1) % ring.size();
-    target_1_pos = (current_pos + 2) % ring.size();
-    target_2_pos = (current_pos + 3) % ring.size();
+    targets[0] = (current_pos + 1) % ring.size();
+    targets[1] = (current_pos + 2) % ring.size();
+    targets[2] = (current_pos + 3) % ring.size();
     pthread_mutex_unlock(&ring_lock);
 }
 
@@ -119,7 +117,6 @@ void remove_daemon_from_ring(char ip[IP_SIZE]) {
 void* receive_pings (void* args) {
     // UDP server addapted from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
     int sockfd; 
-    struct message_info msg;
     struct sockaddr_in servaddr, cliaddr; 
         
     // Creating socket file descriptor 
@@ -146,17 +143,27 @@ void* receive_pings (void* args) {
     socklen_t len = sizeof(cliaddr);  //len is value/result 
     while(running) {
         printf("waiting for ping\n");
-        memset(&msg, 0, sizeof(struct message_info));
+        message_info msg = {};
         int n = recvfrom(sockfd, &msg, sizeof(struct message_info),  
                 MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
                 &len); 
         printf("pinged by: %s\n", msg.sender_ip); 
 
+        // handle Join and Leave 
+        if (msg.message_code == JOIN) {
+            daemon_info info = {};
+            strncpy(info.ip, msg.daemon_ip, IP_SIZE);
+            info.timestamp = msg.timestamp; 
+            add_daemon_to_ring(info);
+        } else if (msg.message_code == LEAVE) {
+            remove_daemon_from_ring(msg.daemon_ip);
+        }
+
         struct message_info send_msg; 
         send_msg.message_code = ACK; 
         sendto(sockfd, &send_msg, sizeof(struct message_info),  
             MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
-                len); 
+                len);
         printf("ACK sent\n");  
     }
     close(sockfd);
@@ -175,11 +182,8 @@ int main(int argc, char *argv[]) {
 	    fprintf(stderr, "usage: daemon [-i]\n");
 	    exit(1);
 	}
-    if (argc == 2) {
-        std::cout << "Introducer" << std::endl;
-    } else {
-        std::cout << "normal daemon" << std::endl;
-    }
+    
+    std::cout << "normal daemon" << std::endl;
 
     // Initialize mutex
     pthread_mutex_init(&ring_lock, NULL);
@@ -189,9 +193,10 @@ int main(int argc, char *argv[]) {
     pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
     
     // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
+    int curr_daemon = 0; // current daemon we are pinging 
     while (running) {
         int sockfd; 
-        struct sockaddr_in     servaddr; 
+        struct sockaddr_in servaddr; 
 
         // Creating socket file descriptor 
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -203,8 +208,8 @@ int main(int argc, char *argv[]) {
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = inet_addr("localhost"); 
-        // servaddr.sin_addr.s_addr = inet_addr(daemon_list[curr_daemon].ip); 
+        servaddr.sin_addr.s_addr = inet_addr(ring[curr_daemon].ip); 
+        
         // set recv timeout 
         struct timeval tv;
         tv.tv_sec = 1; // timeout of 1 sec 
@@ -226,16 +231,18 @@ int main(int argc, char *argv[]) {
         message_info recv_msg; 
         n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
                     MSG_WAITALL, (struct sockaddr *) &servaddr, 
-                    &len); // TODO add timeout 
+                    &len); 
         if (n == -1) {
             if ((errno== EAGAIN) || (errno == EWOULDBLOCK)) {
-                // timeout or leave 
+                // timeout
+                //TODO handle timeouts/failiures 
                 printf("no response\n");
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
 
         //TODO increment ring 
+        curr_daemon = (curr_daemon + 1) % 3; 
         close(sockfd); 
     }
     

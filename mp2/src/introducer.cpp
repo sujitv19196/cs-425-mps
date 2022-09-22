@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
             }
             // add to local ring 
             daemon_info info = {}; 
-            strncpy(info.ip, recv_msg.sender_ip, 16); //TODO HEAP!! 
+            strncpy(info.ip, recv_msg.sender_ip, 16); 
             info.timestamp = recv_msg.timestamp; 
             ring.push_back(info);
             pthread_mutex_unlock(&ring_lock);
