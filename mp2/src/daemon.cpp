@@ -1,7 +1,3 @@
-/*
-** client.c -- a stream socket client demo
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -27,7 +23,7 @@
 
 // #define NUM_VMS 5
 constexpr int PORT = 8080;
-constexpr int MSG_CONFIRM = 0;
+constexpr int MSG_CONFIRM = 0; // TODO Remove when movve to VMs (only a thing to fix make on mac)
 
 // Message codes
 constexpr char PING = 0;
@@ -154,7 +150,7 @@ void* receive_pings (void* args) {
         int n = recvfrom(sockfd, &msg, sizeof(struct message_info),  
                 MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
                 &len); 
-        printf("pinged by: %d\n", msg.sender_ip); 
+        printf("pinged by: %s\n", msg.sender_ip); 
 
         struct message_info send_msg; 
         send_msg.message_code = ACK; 
@@ -164,6 +160,8 @@ void* receive_pings (void* args) {
         printf("ACK sent\n");  
     }
     close(sockfd);
+
+    return 0;
 }
 
 // Main thread duties:
@@ -191,7 +189,6 @@ int main(int argc, char *argv[]) {
     pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
     
     // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
-   int curr_daemon = 0; 
     while (running) {
         int sockfd; 
         struct sockaddr_in     servaddr; 
