@@ -170,8 +170,7 @@ void* receive_pings (void* args) {
     return 0;
 }
 
-// TODO introcuder connext function to get vector info 
-// keep recv daemon-info until stop character 
+// pings introdcuer to get the entire ring and its position in the ring
 void ping_introducer(char* vm_ip) {
     int sockfd; 
     struct sockaddr_in servaddr; 
@@ -188,11 +187,7 @@ void ping_introducer(char* vm_ip) {
     servaddr.sin_port = htons(PORT); 
     servaddr.sin_addr.s_addr = inet_addr(introducer_ip); 
     
-    // set recv timeout 
-    struct timeval tv;
-    tv.tv_sec = 1; // timeout of 1 sec 
-    tv.tv_usec = 0;
-    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+    //TODO add timeout and retrasmit on introducer
 
     int n; 
     socklen_t len; 
@@ -209,6 +204,8 @@ void ping_introducer(char* vm_ip) {
     n = recvfrom(sockfd, &ring_size, sizeof(size_t),  
             MSG_WAITALL, (struct sockaddr *) &servaddr, 
             &len); 
+    
+    // update this VMs current pos 
     current_pos = ring_size-1;
 
     daemon_info daemons[ring_size];
@@ -217,9 +214,9 @@ void ping_introducer(char* vm_ip) {
             &len); 
     // TODO ADD ACKS AND RETRANSMITS 
     for (int i = 0; i < ring_size; i++) {
-        ring[i] = daemons[i];
+        add_daemon_to_ring(daemons[i]);
     }
-    printf("%zu %s\n", ring_size, daemons[0].ip);
+    // printf("%zu %s\n", ring_size, daemons[0].ip);
 }
 
 // gets this vms ip addr 
@@ -282,10 +279,9 @@ int main(int argc, char *argv[]) {
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        // servaddr.sin_addr.s_addr = inet_addr(ring[targets[curr_daemon]].ip); 
-        servaddr.sin_addr.s_addr = inet_addr("localhost"); 
+        servaddr.sin_addr.s_addr = inet_addr(ring[targets[curr_daemon]].ip); 
+        // servaddr.sin_addr.s_addr = inet_addr("localhost"); 
 
-        
         // set recv timeout 
         struct timeval tv;
         tv.tv_sec = 1; // timeout of 1 sec 
