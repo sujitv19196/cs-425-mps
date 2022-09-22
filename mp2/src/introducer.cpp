@@ -154,41 +154,40 @@ void add_daemon_to_ring(message_info recv_msg, int new_daemon_fd, sockaddr_in cl
 int main(int argc, char *argv[]) {
     
     std::cout << "Introducer" << std::endl;
-    
-    while (running) {
-        int sockfd; 
-        struct sockaddr_in servaddr, cliaddr; 
-
-        // Creating socket file descriptor 
-        if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-            perror("socket creation failed"); 
-            exit(EXIT_FAILURE); 
-        } 
-        memset(&servaddr, 0, sizeof(servaddr)); 
-        memset(&cliaddr, 0, sizeof(cliaddr)); 
-
-        // Filling server information 
-        servaddr.sin_family    = AF_INET; // IPv4 
-        servaddr.sin_addr.s_addr = INADDR_ANY; 
-        servaddr.sin_port = htons(INTRODUCER_PORT); 
-
-        // Bind the socket with the server address 
-        if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
+    int sockfd; 
+    struct sockaddr_in servaddr, cliaddr; 
+        
+    // Creating socket file descriptor 
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+        
+    memset(&servaddr, 0, sizeof(servaddr)); 
+    memset(&cliaddr, 0, sizeof(cliaddr)); 
+        
+    // Filling server information 
+    servaddr.sin_family    = AF_INET; // IPv4 
+    servaddr.sin_addr.s_addr = INADDR_ANY; 
+    servaddr.sin_port = htons(PORT); 
+        
+    // Bind the socket with the server address 
+    if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
             sizeof(servaddr)) < 0 ) { 
-            perror("bind failed"); 
-            exit(EXIT_FAILURE); 
-        } 
-               
-        socklen_t len = sizeof(cliaddr);
-        // recv request from daemons 
-        message_info recv_msg = {}; 
+        perror("bind failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+        
+    socklen_t len = sizeof(cliaddr);  //len is value/result 
+    while(running) {
+        printf("waiting for ping\n");
+        message_info recv_msg = {};
         int n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
                     MSG_WAITALL, (struct sockaddr *) &cliaddr, 
                     &len); 
         if (n == -1) {
             perror("recv:");
         }
-
         // handle recv mesg 
         if (recv_msg.message_code == JOIN) {
             printf("JOIN RECV\n");
@@ -196,7 +195,6 @@ int main(int argc, char *argv[]) {
         } else if (recv_msg.message_code == LEAVE) {
             remove_daemon_from_ring(recv_msg.sender_ip);
         }
-        
-        close(sockfd); 
     }
+    close(sockfd); 
 }

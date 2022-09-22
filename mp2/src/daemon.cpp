@@ -196,7 +196,7 @@ void ping_introducer(char* vm_ip) {
 
     int n; 
     socklen_t len; 
-    message_info send_msg;
+    message_info send_msg = {};
     send_msg.message_code = JOIN; 
     strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
     printf("send\n");
@@ -261,7 +261,7 @@ int main(int argc, char *argv[]) {
 
     // talk to introducer 
     ping_introducer(vm_ip);
-
+    exit(1);
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
     pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
