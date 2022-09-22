@@ -54,7 +54,7 @@ struct daemon_info {
 
 pthread_mutex_t ring_lock;      // mutex to access & modify ring (there are 2 threads using it: main & child)
 std::vector<daemon_info> ring;  // ring storing all daemons in order; modulo used for indexing
-int running = 1;    // whether the entire system is running
+int running = 0;    // whether the entire system is running
 // keep track of the positions of the 3 targets of the current daemon (basically next 3 in the ring)
 // we are keeping track of these separate from the ring because it's easier to lookup
 int targets[3] = {-1, -1, -1}; 
@@ -188,18 +188,21 @@ void ping_introducer(char* vm_ip) {
     servaddr.sin_port = htons(PORT); 
     servaddr.sin_addr.s_addr = inet_addr(introducer_ip); 
     
-    // set recv timeout 
-    struct timeval tv;
-    tv.tv_sec = 1; // timeout of 1 sec 
-    tv.tv_usec = 0;
-    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+    // // set recv timeout 
+    // struct timeval tv;
+    // tv.tv_sec = 1; // timeout of 1 sec 
+    // tv.tv_usec = 0;
+    // setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
     int n; 
     socklen_t len; 
     message_info send_msg;
-    send_msg.message_code = PING; 
+    send_msg.message_code = JOIN; 
     strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
-    
+    sendto(sockfd, &send_msg, sizeof(struct message_info), 
+            MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
+                sizeof(servaddr)); 
+
     // recv size of ring
     size_t ring_size; 
     n = recvfrom(sockfd, &ring_size, sizeof(size_t),  
@@ -215,6 +218,24 @@ void ping_introducer(char* vm_ip) {
     for (int i = 0; i < ring_size; i++) {
         ring[i] = daemons[i];
     }
+    printf("%zu %s\n", ring_size, daemons[0].ip);
+}
+
+// gets this vms ip addr 
+char* get_vm_ip() {
+    // get VM ip (adapted from https://www.geeksforgeeks.org/c-program-display-hostname-ip-address/)
+    char hostbuffer[256];
+    char *vm_ip;
+    struct hostent *host_entry;
+    int hostname;
+    // To retrieve hostname
+    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
+    // To retrieve host information
+    host_entry = gethostbyname(hostbuffer);
+    // To convert an Internet network
+    // address into ASCII string
+    return inet_ntoa(*((struct in_addr*)
+                           host_entry->h_addr_list[0]));
 }
 
 // Main thread duties:
@@ -231,19 +252,7 @@ int main(int argc, char *argv[]) {
     
     std::cout << "normal daemon" << std::endl;
     
-    // get VM ip (adapted from https://www.geeksforgeeks.org/c-program-display-hostname-ip-address/)
-    char hostbuffer[256];
-    char *vm_ip;
-    struct hostent *host_entry;
-    int hostname;
-    // To retrieve hostname
-    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
-    // To retrieve host information
-    host_entry = gethostbyname(hostbuffer);
-    // To convert an Internet network
-    // address into ASCII string
-    vm_ip = inet_ntoa(*((struct in_addr*)
-                           host_entry->h_addr_list[0]));
+    char* vm_ip = get_vm_ip();
     printf("%s\n", vm_ip);
 
     // Initialize mutex
@@ -256,9 +265,9 @@ int main(int argc, char *argv[]) {
     pthread_t receive_thread; 
     pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
     
-    // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
     int curr_daemon = 0; // current daemon we are pinging 
-    while (running) {
+    // TODO dont start until ring is size 5  
+    while (running) {  // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
         int sockfd; 
         struct sockaddr_in servaddr; 
 
@@ -305,7 +314,6 @@ int main(int argc, char *argv[]) {
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
 
-        //TODO increment ring 
         curr_daemon = (curr_daemon + 1) % 3; 
         close(sockfd); 
     }

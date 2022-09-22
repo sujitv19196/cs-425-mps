@@ -167,8 +167,6 @@ void add_daemon_to_ring(message_info recv_msg) {
     pthread_mutex_unlock(&ring_lock);
 }
 
-
-
 int main(int argc, char *argv[]) {
     
     std::cout << "Introducer" << std::endl;
@@ -201,6 +199,7 @@ int main(int argc, char *argv[]) {
 
         // handle recv mesg 
         if (recv_msg.message_code == JOIN) {
+            printf("JOIN RECV\n");
             add_daemon_to_ring(recv_msg);
         } else if (recv_msg.message_code == LEAVE) {
             remove_daemon_from_ring(recv_msg.sender_ip);
