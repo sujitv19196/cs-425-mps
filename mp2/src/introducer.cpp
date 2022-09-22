@@ -56,6 +56,30 @@ std::vector<daemon_info> ring;  // ring storing all daemons in order; modulo use
 int running = 1;    // whether the entire system is running
 
 
+void send_to_daemon(char* ip, message_info send_msg) {
+     // create new socket to send
+    int sendfd; 
+    struct sockaddr_in sendaddr; 
+
+    // Creating socket file descriptor 
+    if ( (sendfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+    memset(&sendaddr, 0, sizeof(sendaddr)); 
+        
+    // Filling server information 
+    sendaddr.sin_family = AF_INET; 
+    sendaddr.sin_port = htons(PORT); 
+    sendaddr.sin_addr.s_addr = inet_addr(ip); 
+
+    int n = sendto(sendfd, &send_msg, sizeof(struct message_info), 
+        MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
+        sizeof(sendaddr));
+    //TODO recv ACK?? 
+    close(sendfd);
+}
+
 int main(int argc, char *argv[]) {
     
     std::cout << "Introducer" << std::endl;
@@ -97,36 +121,16 @@ int main(int argc, char *argv[]) {
             strncpy(send_msg.daemon_ip, recv_msg.sender_ip, 16);
             // TODO add introcuer ip (not sure we need to do this tho)
             for (daemon_info daemon : ring) {  // send new add info to all daemons 
-                // create new socket to send
-                int sendfd; 
-                struct sockaddr_in sendaddr; 
-
-                // Creating socket file descriptor 
-                if ( (sendfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-                    perror("socket creation failed"); 
-                    exit(EXIT_FAILURE); 
-                } 
-                memset(&sendaddr, 0, sizeof(sendaddr)); 
-                    
-                // Filling server information 
-                sendaddr.sin_family = AF_INET; 
-                sendaddr.sin_port = htons(PORT); 
-                sendaddr.sin_addr.s_addr = inet_addr(daemon.ip); 
-            
-                int n = sendto(sendfd, &send_msg, sizeof(struct message_info), 
-                    MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
-                    sizeof(sendaddr));
-                //TODO recv ACK?? 
-                close(sendfd);
+               send_to_daemon(daemon.ip, send_msg);
             }
             // add to local ring 
             daemon_info info = {}; 
-            strncpy(info.ip, recv_msg.sender_ip, 16); //TODO HEAP 
+            strncpy(info.ip, recv_msg.sender_ip, 16); //TODO HEAP!! 
             info.timestamp = recv_msg.timestamp; 
             ring.push_back(info);
             pthread_mutex_unlock(&ring_lock);
         } else if (recv_msg.message_code == LEAVE) {
-            // TODO leave logic 
+            // TODO leave logic copy from daemon.cpp 
         }
         
         close(sockfd); 
