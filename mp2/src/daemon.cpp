@@ -24,7 +24,7 @@
 // #define NUM_VMS 5
 constexpr int PORT = 8080;
 constexpr int MSG_CONFIRM = 0; // TODO Remove when movve to VMs (only a thing to fix make on mac)
-
+ 
 // Message codes
 constexpr char PING = 0;
 constexpr char ACK = 1;
@@ -58,8 +58,9 @@ int running = 1;    // whether the entire system is running
 // keep track of the positions of the 3 targets of the current daemon (basically next 3 in the ring)
 // we are keeping track of these separate from the ring because it's easier to lookup
 int targets[3] = {-1, -1, -1}; 
-size_t current_pos = 0;     // Position of ourself in ring (for easy indexing)
+size_t current_pos = -1;     // Position of ourself in ring (for easy indexing)
 char ip[IP_SIZE];   // IP address of ourself
+char* introducer_ip = "localhost"; // TODO PLACEHOLDER
 
 // Function to compare two IP addresses
 bool compare_ip(char* ip1, char* ip2) {
@@ -102,9 +103,9 @@ void remove_daemon_from_ring_assist(size_t position) {
 // Takes ip address into account to calculate position
 // Position may change during simultaneous deletes
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
-        pthread_mutex_lock(&ring_lock);
+    pthread_mutex_lock(&ring_lock);
     remove_daemon_from_ring_assist(position_of_daemon(ip));
-        pthread_mutex_unlock(&ring_lock);
+    pthread_mutex_unlock(&ring_lock);
 
 }
 
@@ -169,6 +170,53 @@ void* receive_pings (void* args) {
     return 0;
 }
 
+// TODO introcuder connext function to get vector info 
+// keep recv daemon-info until stop character 
+void ping_introducer(char* vm_ip) {
+    int sockfd; 
+    struct sockaddr_in servaddr; 
+
+    // Creating socket file descriptor 
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+    memset(&servaddr, 0, sizeof(servaddr)); 
+        
+    // Filling server information 
+    servaddr.sin_family = AF_INET; 
+    servaddr.sin_port = htons(PORT); 
+    servaddr.sin_addr.s_addr = inet_addr(introducer_ip); 
+    
+    // set recv timeout 
+    struct timeval tv;
+    tv.tv_sec = 1; // timeout of 1 sec 
+    tv.tv_usec = 0;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
+    int n; 
+    socklen_t len; 
+    message_info send_msg;
+    send_msg.message_code = PING; 
+    strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
+    
+    // recv size of ring
+    size_t ring_size; 
+    n = recvfrom(sockfd, &ring_size, sizeof(size_t),  
+            MSG_WAITALL, (struct sockaddr *) &servaddr, 
+            &len); 
+    current_pos = ring_size-1;
+
+    daemon_info daemons[ring_size];
+    n = recvfrom(sockfd, &daemons, sizeof(struct daemon_info) * ring_size,  
+            MSG_WAITALL, (struct sockaddr *) &servaddr, 
+            &len); 
+    // TODO ADD ACKS AND RETRANSMITS 
+    for (int i = 0; i < ring_size; i++) {
+        ring[i] = daemons[i];
+    }
+}
+
 // Main thread duties:
 // 1. Talk to introducer to add itself to system 
 // 2. Send pings 
@@ -182,9 +230,27 @@ int main(int argc, char *argv[]) {
 	}
     
     std::cout << "normal daemon" << std::endl;
+    
+    // get VM ip (adapted from https://www.geeksforgeeks.org/c-program-display-hostname-ip-address/)
+    char hostbuffer[256];
+    char *vm_ip;
+    struct hostent *host_entry;
+    int hostname;
+    // To retrieve hostname
+    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
+    // To retrieve host information
+    host_entry = gethostbyname(hostbuffer);
+    // To convert an Internet network
+    // address into ASCII string
+    vm_ip = inet_ntoa(*((struct in_addr*)
+                           host_entry->h_addr_list[0]));
+    printf("%s\n", vm_ip);
 
     // Initialize mutex
     pthread_mutex_init(&ring_lock, NULL);
+
+    // talk to introducer 
+    ping_introducer(vm_ip);
 
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
@@ -218,7 +284,7 @@ int main(int argc, char *argv[]) {
         socklen_t len; 
         message_info send_msg;
         send_msg.message_code = PING; 
-        send_msg.sender_ip[0] = 'g'; // TODO placeholder 
+        strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
         
         // send PING to target proc 
         sendto(sockfd, &send_msg, sizeof(struct message_info), 

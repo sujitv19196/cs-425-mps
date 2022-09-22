@@ -48,7 +48,7 @@ struct message_info {
 // Structure of daemon info stored in ring
 struct daemon_info {
     char ip[IP_SIZE];
-    int timestamp;
+    int timestamp; // -1 means introducer is done sending ring info 
 };
 
 pthread_mutex_t ring_lock;
@@ -87,23 +87,38 @@ void remove_daemon_from_ring(char ip[IP_SIZE]) {
     pthread_mutex_unlock(&ring_lock);
 }
 
-void add_daemon_to_ring(message_info recv_msg) {
-    pthread_mutex_lock(&ring_lock); // lock for entire duration because position could chnage on simultaneous leave 
-    // formulate msg to send to all daemons 
-    message_info send_msg = {};
-    send_msg.message_code = JOIN; 
-    send_msg.position = ring.size(); // add to back of ring 
-    send_msg.timestamp = recv_msg.timestamp;
-    strncpy(send_msg.daemon_ip, recv_msg.sender_ip, 16);
-    for (daemon_info daemon : ring) {  // send new add info to all daemons 
-        send_to_daemon(daemon.ip, send_msg);
+void send_ring_to_new_daemon(char* ip) {
+    // create new socket to send
+    int sendfd; 
+    struct sockaddr_in sendaddr; 
+
+    // Creating socket file descriptor 
+    if ( (sendfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+    memset(&sendaddr, 0, sizeof(sendaddr)); 
+        
+    // Filling server information 
+    sendaddr.sin_family = AF_INET; 
+    sendaddr.sin_port = htons(PORT); 
+    sendaddr.sin_addr.s_addr = inet_addr(ip);
+    
+    // send size of ring 
+    size_t ring_size = ring.size();
+    int n = sendto(sendfd, &ring_size, sizeof(size_t), 
+                    MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
+                    sizeof(sendaddr));
+    
+    daemon_info daemons[ring_size];
+    for (int i = 0; i < ring.size(); i++) {
+        daemons[i] = ring[i];
     }
-    // add to local ring 
-    daemon_info info = {}; 
-    strncpy(info.ip, recv_msg.sender_ip, 16); 
-    info.timestamp = recv_msg.timestamp; 
-    ring.push_back(info);
-    pthread_mutex_unlock(&ring_lock);
+    n = sendto(sendfd, daemons, sizeof(struct daemon_info) * ring_size, 
+                MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
+                sizeof(sendaddr));
+    // TODO check for sender error
+    close(sendfd);
 }
 
 void send_to_daemon(char* ip, message_info send_msg) {
@@ -129,6 +144,30 @@ void send_to_daemon(char* ip, message_info send_msg) {
     //TODO recv ACK?? 
     close(sendfd);
 }
+
+void add_daemon_to_ring(message_info recv_msg) {
+    pthread_mutex_lock(&ring_lock); // lock for entire duration because position could chnage on simultaneous leave 
+    // formulate msg to send to all daemons 
+    message_info send_msg = {};
+    send_msg.message_code = JOIN; 
+    send_msg.position = ring.size(); // add to back of ring 
+    send_msg.timestamp = recv_msg.timestamp;
+    strncpy(send_msg.daemon_ip, recv_msg.sender_ip, 16);
+    for (daemon_info daemon : ring) {  // send new add info to all daemons 
+        send_to_daemon(daemon.ip, send_msg);
+    }
+    // add to local ring 
+    daemon_info info = {}; 
+    strncpy(info.ip, recv_msg.sender_ip, 16); 
+    info.timestamp = recv_msg.timestamp; 
+    ring.push_back(info);
+
+    // send entire ring to new daemon 
+    send_ring_to_new_daemon(recv_msg.sender_ip);
+    pthread_mutex_unlock(&ring_lock);
+}
+
+
 
 int main(int argc, char *argv[]) {
     
