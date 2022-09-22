@@ -23,7 +23,7 @@
 
 // #define NUM_VMS 5
 constexpr int PORT = 8080;
-constexpr int MSG_CONFIRM = 0; // TODO Remove when movve to VMs (only a thing to fix make on mac)
+// constexpr int MSG_CONFIRM = 0; // TODO Remove when movve to VMs (only a thing to fix make on mac)
  
 // Message codes
 constexpr char PING = 0;
@@ -260,8 +260,8 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&ring_lock, NULL);
 
     // talk to introducer 
-    ping_introducer(vm_ip);
-    exit(1);
+    // ping_introducer(vm_ip);
+
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
     pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
@@ -282,7 +282,7 @@ int main(int argc, char *argv[]) {
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        // servaddr.sin_addr.s_addr = inet_addr(ring[curr_daemon].ip); 
+        // servaddr.sin_addr.s_addr = inet_addr(ring[targets[curr_daemon]].ip); 
         servaddr.sin_addr.s_addr = inet_addr("localhost"); 
 
         
@@ -294,7 +294,7 @@ int main(int argc, char *argv[]) {
 
         int n; 
         socklen_t len; 
-        message_info send_msg;
+        message_info send_msg = {};
         send_msg.message_code = PING; 
         strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
         

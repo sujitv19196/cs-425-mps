@@ -22,8 +22,8 @@
 #include <thread>
 
 constexpr int PORT = 8080;
-constexpr int INTRODUCER_PORT = 9080;
-constexpr int MSG_CONFIRM = 0;
+// constexpr int INTRODUCER_PORT = 9080;
+// constexpr int MSG_CONFIRM = 0;
 
 // Message codes
 constexpr char PING = 0;
