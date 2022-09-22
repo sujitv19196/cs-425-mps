@@ -26,30 +26,33 @@
 #include <thread>
 
 // #define NUM_VMS 5
-#define PORT   8080 
-#define MSG_CONFIRM 0
+constexpr int PORT = 8080;
+constexpr int MSG_CONFIRM = 0;
 
 // Message codes
-#define PING 0 
-#define ACK 1 
-#define JOIN 2
-#define LEAVE 3
+constexpr char PING = 0;
+constexpr char ACK = 1;
+constexpr char JOIN = 2;
+constexpr char LEAVE = 3;
+
+// Other consts
+constexpr size_t IP_SIZE = 16;
 
 // Structure of messages sent by daemon
 struct message_info {
     // general info
-    int message_code;
-    int timestamp;
-    char sender_ip[15];
+    char message_code;
+    time_t timestamp;
+    char sender_ip[IP_SIZE];
 
     // join & leave
-    char daemon_ip[15];
+    char daemon_ip[IP_SIZE];
     size_t position;
 };
 
 // Structure of daemon info stored in ring
 struct daemon_info {
-    char ip[15];
+    char ip[IP_SIZE];
     int timestamp;
 };
 
