@@ -68,7 +68,7 @@ pthread_cond_t g5_cv;   // begin pinging once ring contains more than 5 daemons
 int targets[3] = {-1, -1, -1}; 
 size_t current_pos = -1;     // Position of ourself in ring (for easy indexing)
 char ip[IP_SIZE];   // IP address of ourself
-char introducer_ip[IP_SIZE] = "172.22.159.36"; // TODO PLACEHOLDER
+char introducer_ip[IP_SIZE] = "172.22.157.36"; // TODO PLACEHOLDER
 
 // ===========================================================================================================
 // Helper Functions
@@ -348,10 +348,13 @@ int main(int argc, char *argv[]) {
         
     // Don't start until ring size is greater than 5.
     printf("Ring currently has %zu elements.", ring.size());
+    
     pthread_mutex_lock(&ring_lock);
-    pthread_cond_wait(&g5_cv, &ring_lock);
-    printf("Ring now has %zu elements. Beginning pinging from main thread.", ring.size());
+    while (ring.size() < 5) {
+        pthread_cond_wait(&g5_cv, &ring_lock);
+    }
     pthread_mutex_unlock(&ring_lock);
+    printf("Ring now has %zu elements. Beginning pinging from main thread.", ring.size());
 
     int curr_daemon = 0; // current daemon we are pinging 
 
@@ -397,7 +400,6 @@ int main(int argc, char *argv[]) {
                     &len); 
         if (n == -1) {
             if ((errno== EAGAIN) || (errno == EWOULDBLOCK)) {
-                
                 // TIMEOUT!
                 // Must remove the target daemon from ring
                 // Then send fail message to every other daemon to do the same.
