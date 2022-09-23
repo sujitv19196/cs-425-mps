@@ -28,12 +28,9 @@
 
 // #define NUM_VMS 5
 constexpr int PORT = 8080;
-<<<<<<< HEAD
 constexpr int INTRODUCER_PORT = 8001; 
-=======
 constexpr int MAIN_PORT = 8080;
 constexpr int CHILD_PORT = 8081;
->>>>>>> 6f0ecd4 (finished daemon.cpp rough draft, testing remains)
 constexpr int MSG_CONFIRM = 0;
 
 // Message codes
@@ -147,7 +144,7 @@ char* get_vm_ip() {
 }
 
 // Send a message to a specific ip address
-int send_message(char dest_ip[16], void* message, size_t message_len) {
+int send_message(char dest_ip[16], void* message, size_t message_len, int port) {
     int sockfd;
     struct sockaddr_in remote = {0};
     if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -156,7 +153,7 @@ int send_message(char dest_ip[16], void* message, size_t message_len) {
     } 
     remote.sin_addr.s_addr = inet_addr(dest_ip); 
     remote.sin_family    = AF_INET; // IPv4 
-    remote.sin_port = htons(CHILD_PORT); 
+    remote.sin_port = htons(port); 
     connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
 
     send(sockfd, message, message_len, 0);
@@ -174,7 +171,7 @@ int send_leave() {
         strncpy(send_msg.sender_ip, ip, IP_SIZE);
         strncpy(send_msg.daemon_ip, d.ip, IP_SIZE);
 
-        send_message(d.ip, &send_msg, sizeof(message_info));
+        send_message(d.ip, &send_msg, sizeof(message_info), CHILD_PORT);
         printf("LEAVE notice sent for IP %s.\n", d.ip);
     }
     pthread_mutex_unlock(&ring_lock);
@@ -185,7 +182,7 @@ int send_leave() {
 // Handle ctrl+Z signal (server gracefully quitting)
 void sig_handler(int signum){    
 
-    if (signum = SIGTSTP) {
+    if (signum == SIGTSTP) {
         printf("SIGTSTP pressed. Attempting to leave gracefully ...");
 
         // send leave notification to all daemons
@@ -222,7 +219,7 @@ void* receive_pings (void* args) {
     // Filling server information 
     servaddr.sin_family    = AF_INET; // IPv4 
     servaddr.sin_addr.s_addr = INADDR_ANY; 
-    servaddr.sin_port = htons(PORT); 
+    servaddr.sin_port = htons(MAIN_PORT); 
         
     // Bind the socket with the server address 
     if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
@@ -371,7 +368,7 @@ int main(int argc, char *argv[]) {
             
         // Filling server information 
         servaddr.sin_family = AF_INET; 
-        servaddr.sin_port = htons(PORT); 
+        servaddr.sin_port = htons(CHILD_PORT); 
         servaddr.sin_addr.s_addr = inet_addr(ring[targets[curr_daemon]].ip); 
         // servaddr.sin_addr.s_addr = inet_addr("localhost"); 
 
