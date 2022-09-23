@@ -21,10 +21,16 @@
 #include <mutex>
 #include <thread>
 
+// ===========================================================================================================
+// Global Variables
+// ===========================================================================================================
+
 // #define NUM_VMS 5
 constexpr int PORT = 8080;
-constexpr int MSG_CONFIRM = 0; // TODO Remove when movve to VMs (only a thing to fix make on mac)
- 
+constexpr int SEND_PORT = 8080;
+constexpr int RECEIVE_PORT = 8081;
+constexpr int MSG_CONFIRM = 0;
+
 // Message codes
 constexpr char PING = 0;
 constexpr char ACK = 1;
@@ -61,6 +67,10 @@ int targets[3] = {-1, -1, -1};
 size_t current_pos = -1;     // Position of ourself in ring (for easy indexing)
 char ip[IP_SIZE];   // IP address of ourself
 char* introducer_ip = "172.22.159.36"; // TODO PLACEHOLDER
+
+// ===========================================================================================================
+// Helper Functions
+// ===========================================================================================================
 
 // Function to compare two IP addresses
 bool compare_ip(char* ip1, char* ip2) {
@@ -109,10 +119,14 @@ void remove_daemon_from_ring(char ip[IP_SIZE]) {
 
 }
 
+// ===========================================================================================================
+// Child Thread Functions
+// ===========================================================================================================
 // Child thread duties:
 // 1. Receive pings and send acknowledgements
 // 2. Receive joins (and modify ring)
 // 3. Receive leaves (and modify ring)
+
 void* receive_pings (void* args) {
     // UDP server addapted from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
     int sockfd; 
@@ -141,6 +155,7 @@ void* receive_pings (void* args) {
         
     socklen_t len = sizeof(cliaddr);  //len is value/result 
     while(running) {
+        // Recieve the message
         printf("waiting for ping\n");
         message_info msg = {};
         int n = recvfrom(sockfd, &msg, sizeof(struct message_info),  
@@ -236,6 +251,9 @@ char* get_vm_ip() {
                            host_entry->h_addr_list[0]));
 }
 
+// ===========================================================================================================
+// Main Thread
+// ===========================================================================================================
 // Main thread duties:
 // 1. Talk to introducer to add itself to system 
 // 2. Send pings 
