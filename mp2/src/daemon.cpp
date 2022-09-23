@@ -27,8 +27,7 @@
 
 // #define NUM_VMS 5
 constexpr int PORT = 8080;
-constexpr int SEND_PORT = 8080;
-constexpr int RECEIVE_PORT = 8081;
+constexpr int INTRODUCER_PORT = 8001; 
 constexpr int MSG_CONFIRM = 0;
 
 // Message codes
@@ -199,7 +198,7 @@ void ping_introducer(char* vm_ip) {
         
     // Filling server information 
     servaddr.sin_family = AF_INET; 
-    servaddr.sin_port = htons(PORT); 
+    servaddr.sin_port = htons(INTRODUCER_PORT); 
     servaddr.sin_addr.s_addr = inet_addr(introducer_ip); 
     
     //TODO add timeout and retrasmit on introducer
@@ -279,7 +278,7 @@ int main(int argc, char *argv[]) {
 
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
-    pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
+    pthread_create(&receive_thread, NULL, receive_pings, NULL); 
     
     int curr_daemon = 0; // current daemon we are pinging 
     // TODO dont start until ring is size 5  

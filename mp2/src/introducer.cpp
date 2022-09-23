@@ -18,11 +18,10 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
-#include <mutex>
 #include <thread>
 
 constexpr int PORT = 8080;
-// constexpr int INTRODUCER_PORT = 9080;
+constexpr int INTRODUCER_PORT = 8001; 
 constexpr int MSG_CONFIRM = 0;
 
 // Message codes
@@ -151,12 +150,19 @@ void add_daemon_to_ring(message_info recv_msg, int new_daemon_fd, sockaddr_in cl
     pthread_mutex_unlock(&ring_lock);
 }
 
-int main(int argc, char *argv[]) {
-    
-    std::cout << "Introducer" << std::endl;
+// ===========================================================================================================
+// Child Thread Functions
+// ===========================================================================================================
+// Child thread duties:
+// 1. Receive pings and send acknowledgements
+// 2. Receive joins (and modify ring)
+// 3. Receive leaves (and modify ring)
+
+void* receive_pings (void* args) {
+    // UDP server addapted from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
     int sockfd; 
     struct sockaddr_in servaddr, cliaddr; 
-        
+    
     // Creating socket file descriptor 
     if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
         perror("socket creation failed"); 
@@ -180,7 +186,93 @@ int main(int argc, char *argv[]) {
         
     socklen_t len = sizeof(cliaddr);  //len is value/result 
     while(running) {
+        // Recieve the message
         printf("waiting for ping\n");
+        message_info msg = {};
+        int n = recvfrom(sockfd, &msg, sizeof(struct message_info),  
+                MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
+                &len); 
+        printf("pinged by: %s\n", msg.sender_ip); 
+
+        //TODO might have to handle ADD in the futrue? although atm all adds happen here 
+        if (msg.message_code == LEAVE) {
+            remove_daemon_from_ring(msg.daemon_ip);
+        }
+
+        struct message_info send_msg; 
+        send_msg.message_code = ACK; 
+        sendto(sockfd, &send_msg, sizeof(struct message_info),  
+            MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
+                len);
+        printf("ACK sent\n");  
+    }
+    close(sockfd);
+
+    return 0;
+}
+
+// gets this vms ip addr 
+char* get_vm_ip() {
+    // get VM ip (adapted from https://www.geeksforgeeks.org/c-program-display-hostname-ip-address/)
+    char hostbuffer[256];
+    char *vm_ip;
+    struct hostent *host_entry;
+    int hostname;
+    // To retrieve hostname
+    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
+    // To retrieve host information
+    host_entry = gethostbyname(hostbuffer);
+    // To convert an Internet network
+    // address into ASCII string
+    return inet_ntoa(*((struct in_addr*)
+                           host_entry->h_addr_list[0]));
+}
+
+int main(int argc, char *argv[]) {
+    
+    std::cout << "Introducer" << std::endl;
+    int sockfd; 
+    struct sockaddr_in servaddr, cliaddr; 
+    
+    // Initialize mutex
+    pthread_mutex_init(&ring_lock, NULL);
+
+    // add the introducer to the ring 
+    pthread_mutex_lock(&ring_lock);
+    daemon_info introducer = {};
+    strncpy(introducer.ip, get_vm_ip(), IP_SIZE);
+    //TODO timestamp 
+    ring.push_back(introducer);
+    pthread_mutex_unlock(&ring_lock);
+
+    // Create recv thread to recv pings and send back ACKs 
+    pthread_t receive_thread; 
+    pthread_create(&receive_thread, NULL, receive_pings, NULL); 
+
+    // Creating socket file descriptor 
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+        
+    memset(&servaddr, 0, sizeof(servaddr)); 
+    memset(&cliaddr, 0, sizeof(cliaddr)); 
+        
+    // Filling server information 
+    servaddr.sin_family    = AF_INET; // IPv4 
+    servaddr.sin_addr.s_addr = INADDR_ANY; 
+    servaddr.sin_port = htons(INTRODUCER_PORT); 
+        
+    // Bind the socket with the server address 
+    if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
+            sizeof(servaddr)) < 0 ) { 
+        perror("bind failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+        
+    socklen_t len = sizeof(cliaddr);  //len is value/result 
+    while(running) {
+        printf("waiting for new joins\n");
         message_info recv_msg = {};
         int n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
                     MSG_WAITALL, (struct sockaddr *) &cliaddr, 
@@ -190,11 +282,12 @@ int main(int argc, char *argv[]) {
         }
         // handle recv mesg 
         if (recv_msg.message_code == JOIN) {
-            printf("JOIN RECV\n");
+            printf("JOIN RECVd\n");
             add_daemon_to_ring(recv_msg, sockfd, cliaddr);
-        } else if (recv_msg.message_code == LEAVE) {
-            remove_daemon_from_ring(recv_msg.sender_ip);
         }
     }
     close(sockfd); 
+    pthread_join(receive_thread, NULL);
+    pthread_mutex_destroy(&ring_lock);
+
 }
