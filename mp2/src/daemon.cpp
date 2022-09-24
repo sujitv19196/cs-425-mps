@@ -233,7 +233,7 @@ void* receive_pings (void* args) {
     socklen_t len = sizeof(cliaddr);  //len is value/result 
     while(running) {
         // Recieve the message
-        printf("waiting for ping\n");
+        // printf("waiting for ping\n");
         message_info msg = {};
         int n = recvfrom(sockfd, &msg, sizeof(struct message_info),  
                 MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
