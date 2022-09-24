@@ -22,7 +22,7 @@
 
 constexpr int PORT = 8080;
 constexpr int INTRODUCER_PORT = 8001; 
-constexpr int MSG_CONFIRM = 0;
+// constexpr int MSG_CONFIRM = 0;
 
 // Message codes
 constexpr char PING = 0;
