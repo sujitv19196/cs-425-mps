@@ -29,8 +29,8 @@
 // #define NUM_VMS 5
 constexpr int PORT = 8080;
 constexpr int INTRODUCER_PORT = 8001; 
-constexpr int MAIN_PORT = 8080;
-constexpr int CHILD_PORT = 8081;
+// constexpr int MAIN_PORT = 8080;
+// constexpr int CHILD_PORT = 8081;
 // constexpr int MSG_CONFIRM = 0;
 
 // Message codes
@@ -100,6 +100,7 @@ void add_daemon_to_ring(daemon_info daemon) {
     if (ring.size() > 5) {
         pthread_cond_signal(&g5_cv);    // signal that pinging may begin
     }
+    printf("added %s to ring\n", daemon.ip);
     pthread_mutex_unlock(&ring_lock);
 }
 
@@ -113,7 +114,7 @@ void remove_daemon_from_ring_assist(size_t position) {
     targets[0] = (current_pos + 1) % ring.size();
     targets[1] = (current_pos + 2) % ring.size();
     targets[2] = (current_pos + 3) % ring.size();
-    pthread_mutex_unlock(&ring_lock);
+    pthread_mutex_unlock(&ring_lock); // TODO LOOK 
 }
 
 // Wrapper for remove daemon
@@ -121,6 +122,7 @@ void remove_daemon_from_ring_assist(size_t position) {
 // Position may change during simultaneous deletes
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
     remove_daemon_from_ring_assist(position_of_daemon(ip));
+    printf("removed %s to ring\n", ip);
 }
 
 // gets this vms ip addr 
@@ -171,7 +173,7 @@ int send_leave() {
         strncpy(send_msg.sender_ip, ip, IP_SIZE);
         strncpy(send_msg.daemon_ip, d.ip, IP_SIZE);
 
-        send_message(d.ip, &send_msg, sizeof(message_info), CHILD_PORT);
+        send_message(d.ip, &send_msg, sizeof(message_info), PORT);
         printf("LEAVE notice sent for IP %s.\n", d.ip);
     }
     pthread_mutex_unlock(&ring_lock);
@@ -219,7 +221,7 @@ void* receive_pings (void* args) {
     // Filling server information 
     servaddr.sin_family    = AF_INET; // IPv4 
     servaddr.sin_addr.s_addr = INADDR_ANY; 
-    servaddr.sin_port = htons(MAIN_PORT); 
+    servaddr.sin_port = htons(PORT); 
         
     // Bind the socket with the server address 
     if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
@@ -347,14 +349,14 @@ int main(int argc, char *argv[]) {
     pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
         
     // Don't start until ring size is greater than 5.
-    printf("Ring currently has %zu elements.", ring.size());
+    printf("Ring currently has %zu elements.\n", ring.size());
     
     pthread_mutex_lock(&ring_lock);
     while (ring.size() < 5) {
         pthread_cond_wait(&g5_cv, &ring_lock);
     }
     pthread_mutex_unlock(&ring_lock);
-    printf("Ring now has %zu elements. Beginning pinging from main thread.", ring.size());
+    printf("Ring now has %zu elements. Beginning pinging from main thread.\n", ring.size());
 
     int curr_daemon = 0; // current daemon we are pinging 
 
@@ -371,7 +373,7 @@ int main(int argc, char *argv[]) {
             
         // Filling server information 
         servaddr.sin_family = AF_INET; 
-        servaddr.sin_port = htons(CHILD_PORT); 
+        servaddr.sin_port = htons(PORT); 
         servaddr.sin_addr.s_addr = inet_addr(ring[targets[curr_daemon]].ip); 
         // servaddr.sin_addr.s_addr = inet_addr("localhost"); 
 
