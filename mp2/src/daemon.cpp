@@ -238,7 +238,7 @@ void* receive_pings (void* args) {
         int n = recvfrom(sockfd, &msg, sizeof(struct message_info),  
                 MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
                 &len); 
-        printf("pinged by: %s\n", msg.sender_ip); 
+        // printf("pinged by: %s\n", msg.sender_ip); 
 
         // handle Join and Leave 
         if (msg.message_code == JOIN) {
@@ -248,7 +248,7 @@ void* receive_pings (void* args) {
             add_daemon_to_ring(info);
         } else if (msg.message_code == LEAVE) {
             remove_daemon_from_ring(msg.daemon_ip);
-        }
+        } 
 
         // Acknowledge receipt of message (happens regardless of )
         struct message_info send_msg; 
@@ -257,7 +257,7 @@ void* receive_pings (void* args) {
         sendto(sockfd, &send_msg, sizeof(struct message_info),  
             MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
                 len);
-        printf("ACK sent\n");  
+        // printf("ACK sent\n");  
     }
     close(sockfd);
 
