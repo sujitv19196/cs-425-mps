@@ -67,7 +67,7 @@ pthread_cond_t g5_cv;   // begin pinging once ring contains more than 5 daemons
 // we are keeping track of these separate from the ring because it's easier to lookup
 int targets[3] = {-1, -1, -1}; 
 size_t current_pos = -1;     // Position of ourself in ring (for easy indexing)
-char ip[IP_SIZE];   // IP address of ourself
+char my_ip[IP_SIZE];   // IP address of ourself
 char introducer_ip[IP_SIZE] = "172.22.157.36"; // TODO PLACEHOLDER
 
 // ===========================================================================================================
@@ -102,27 +102,6 @@ void add_daemon_to_ring(daemon_info daemon) {
     }
     printf("added %s to ring\n", daemon.ip);
     pthread_mutex_unlock(&ring_lock);
-}
-
-// Function to remove daemon from ring
-// Updates current daemon's position and position of all targets
-// If multiple daemons are called, it is caller's responsibility to keep track of position changes
-void remove_daemon_from_ring_assist(size_t position) {
-    pthread_mutex_lock(&ring_lock);
-    ring.erase(ring.begin() + position);
-    current_pos = position_of_daemon(ip);
-    targets[0] = (current_pos + 1) % ring.size();
-    targets[1] = (current_pos + 2) % ring.size();
-    targets[2] = (current_pos + 3) % ring.size();
-    pthread_mutex_unlock(&ring_lock); // TODO LOOK 
-}
-
-// Wrapper for remove daemon
-// Takes ip address into account to calculate position
-// Position may change during simultaneous deletes
-void remove_daemon_from_ring(char ip[IP_SIZE]) {
-    remove_daemon_from_ring_assist(position_of_daemon(ip));
-    printf("removed %s to ring\n", ip);
 }
 
 // gets this vms ip addr 
@@ -163,23 +142,48 @@ int send_message(char dest_ip[16], void* message, size_t message_len, int port) 
 }
 
 // Send leave message to all other daemons
-int send_leave() {
+int send_leave(char ip[IP_SIZE]) {
     // send leave message
     pthread_mutex_lock(&ring_lock);
-    for (daemon_info d: ring) {
-        struct message_info send_msg; 
-        send_msg.message_code = LEAVE; 
-        send_msg.timestamp = time(NULL);
-        strncpy(send_msg.sender_ip, ip, IP_SIZE);
-        strncpy(send_msg.daemon_ip, d.ip, IP_SIZE);
+    for (daemon_info d: ring) { // send to each daemon expect myself and the leaving daemon
+        if (d.ip != ip && d.ip != my_ip) {
+            struct message_info send_msg; 
+            send_msg.message_code = LEAVE; 
+            send_msg.timestamp = time(NULL);
+            strncpy(send_msg.sender_ip, ip, IP_SIZE);
+            strncpy(send_msg.daemon_ip, d.ip, IP_SIZE);
 
-        send_message(d.ip, &send_msg, sizeof(message_info), PORT);
-        printf("LEAVE notice sent for IP %s.\n", d.ip);
+            send_message(d.ip, &send_msg, sizeof(message_info), PORT);
+            printf("LEAVE notice sent to IP %s.\n", d.ip);
+        }
     }
     pthread_mutex_unlock(&ring_lock);
 
     return 0;
 }
+
+// Function to remove daemon from ring
+// Updates current daemon's position and position of all targets
+// If multiple daemons are called, it is caller's responsibility to keep track of position changes
+void remove_daemon_from_ring_assist(size_t position) {
+    pthread_mutex_lock(&ring_lock);
+    ring.erase(ring.begin() + position);
+    current_pos = position_of_daemon(my_ip);
+    targets[0] = (current_pos + 1) % ring.size();
+    targets[1] = (current_pos + 2) % ring.size();
+    targets[2] = (current_pos + 3) % ring.size();
+    pthread_mutex_unlock(&ring_lock); // TODO LOOK 
+}
+
+// Wrapper for remove daemon
+// Takes ip address into account to calculate position
+// Position may change during simultaneous deletes
+void remove_daemon_from_ring(char ip[IP_SIZE]) {
+    remove_daemon_from_ring_assist(position_of_daemon(ip));
+    send_leave(ip);
+    // printf("removed %s to ring\n", ip);
+}
+
 
 // Handle ctrl+Z signal (server gracefully quitting)
 void sig_handler(int signum){    
@@ -188,7 +192,7 @@ void sig_handler(int signum){
         printf("SIGTSTP pressed. Attempting to leave gracefully ...");
 
         // send leave notification to all daemons
-        send_leave();
+        send_leave(my_ip);
 
         // exit gracefully
         printf("Send leave notification to other daemons. Exiting program.");
@@ -253,7 +257,7 @@ void* receive_pings (void* args) {
         // Acknowledge receipt of message (happens regardless of )
         struct message_info send_msg; 
         send_msg.message_code = ACK; 
-        strncpy(send_msg.sender_ip, ip, IP_SIZE);
+        strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
         sendto(sockfd, &send_msg, sizeof(struct message_info),  
             MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
                 len);
@@ -335,7 +339,7 @@ int main(int argc, char *argv[]) {
     
     // Get the ip of yourself
     char* vm_ip = get_vm_ip();
-    strncpy(ip, vm_ip, IP_SIZE);
+    strncpy(my_ip, vm_ip, IP_SIZE);
     printf("%s\n", vm_ip);
 
     // Initialize mutex
@@ -407,7 +411,6 @@ int main(int argc, char *argv[]) {
                 // Then send fail message to every other daemon to do the same.
                 printf("Ping to daemon with ip %s timed out. Sending out failure notice.\n", ring[targets[curr_daemon]].ip);
                 remove_daemon_from_ring(ring[targets[curr_daemon]].ip);
-                send_leave();
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
