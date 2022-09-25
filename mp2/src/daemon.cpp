@@ -400,7 +400,7 @@ int main(int argc, char *argv[]) {
 
     int curr_daemon = 0; // current daemon we are pinging 
 
-    int retrasmit_threshold = 4; 
+    int retrasmit_threshold = 8; 
     while (running) {  // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
         int sockfd; 
         struct sockaddr_in servaddr; 
@@ -420,7 +420,7 @@ int main(int argc, char *argv[]) {
 
         // set recv timeout 
         struct timeval tv;
-        tv.tv_sec = 1; // timeout of 1 sec 
+        tv.tv_sec = .5; // timeout of 1 sec 
         tv.tv_usec = 0;
         setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
