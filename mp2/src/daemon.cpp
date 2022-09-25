@@ -87,7 +87,7 @@ void write_to_logfile(int message_code, char* ip, time_t timestamp) {
     // fputs(" ", f);
     // fputc(timestamp, f);
     // fputs("\n", f);
-    // fclose(f);
+    fclose(f);
     pthread_mutex_unlock(&logfile_lock);
 }
 
@@ -217,7 +217,14 @@ void sig_handler(int signum){
         // exit gracefully
         printf("Send leave notification to other daemons. Exiting program.");
         exit(0);
-  }
+    }
+    // print out ring
+    else if (signum == SIGQUIT) {
+        printf("Printing out ring:\n");
+        for (daemon_info d: ring) {
+            printf("%s %d\n", d.ip, d.timestamp);
+        }
+    }
 }
 
 // ===========================================================================================================
@@ -348,6 +355,7 @@ void ping_introducer(char* vm_ip) {
 int main(int argc, char *argv[]) {
     // Set up signal handling
     signal(SIGTSTP, sig_handler);
+    signal(SIGQUIT, sig_handler);
 
     // Parse arguments
 	if (argc > 2) {
