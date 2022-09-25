@@ -146,7 +146,7 @@ int send_leave(char leaving_ip[IP_SIZE]) {
     // send leave message
     pthread_mutex_lock(&ring_lock);
     for (daemon_info d: ring) { // send to each daemon expect myself and the leaving daemon
-        if (d.ip != leaving_ip && d.ip != my_ip) {
+        if (!compare_ip(d.ip, leaving_ip) && !compare_ip(d.ip, my_ip)) {
             struct message_info send_msg; 
             send_msg.message_code = LEAVE; 
             send_msg.timestamp = time(NULL);
