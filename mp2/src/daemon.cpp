@@ -180,7 +180,7 @@ void remove_daemon_from_ring_assist(size_t position) {
 // Position may change during simultaneous deletes
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
     remove_daemon_from_ring_assist(position_of_daemon(ip));
-    // printf("removed %s to ring\n", ip);
+    printf("removed %s to ring\n", ip);
 }
 
 
