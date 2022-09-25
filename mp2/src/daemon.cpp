@@ -228,6 +228,10 @@ void sig_handler(int signum){
         for (daemon_info d: ring) {
             printf("%s %d\n", d.ip, d.timestamp);
         }
+	printf("Printing out targets:\n"); 
+	for (int i = 0; i < 3; i++) {
+	    printf("target %d; %s\n", targets[i], ring[targets[i]].ip); 
+	}
     }
 }
 
