@@ -20,8 +20,9 @@
 #include <chrono>
 #include <thread>
 
-constexpr int PORT = 8080;
-constexpr int INTRODUCER_PORT = 8001; 
+constexpr int MAIN_PORT = 8080;
+constexpr int CHILD_PORT = 8081;
+constexpr int INTRODUCER_PORT = 8002; 
 // constexpr int MSG_CONFIRM = 0;
 
 // Message codes
@@ -55,6 +56,23 @@ pthread_mutex_t ring_lock;
 std::vector<daemon_info> ring;  // ring storing all daemons in order; modulo used for indexing
 int running = 1;    // whether the entire system is running
 
+// Send a message to a specific ip address
+int send_message(char dest_ip[16], void* message, size_t message_len, int port) {
+    int sockfd;
+    struct sockaddr_in remote = {0};
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("Leave sending: socket creation failed!"); 
+        exit(EXIT_FAILURE); 
+    } 
+    remote.sin_addr.s_addr = inet_addr(dest_ip); 
+    remote.sin_family    = AF_INET; // IPv4 
+    remote.sin_port = htons(port); 
+    connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
+
+    send(sockfd, message, message_len, 0);
+    close(sockfd);
+    return 0;
+}
 
 // Function to compare two IP addresses
 bool compare_ip(char* ip1, char* ip2) {
@@ -71,65 +89,47 @@ int position_of_daemon(char ip[IP_SIZE]) {
     return -1;
 }
 
-// Function to remove daemon from ring
-// Updates current daemon's position and position of all targets
-// If multiple daemons are called, it is caller's responsibility to keep track of position changes
-void remove_daemon_from_ring_assist(size_t position) {
-    ring.erase(ring.begin() + position);
+// gets this vms ip addr 
+char* get_vm_ip() {
+    // get VM ip (adapted from https://www.geeksforgeeks.org/c-program-display-hostname-ip-address/)
+    char hostbuffer[256];
+    char *vm_ip;
+    struct hostent *host_entry;
+    int hostname;
+    // To retrieve hostname
+    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
+    // To retrieve host information
+    host_entry = gethostbyname(hostbuffer);
+    // To convert an Internet network
+    // address into ASCII string
+    return inet_ntoa(*((struct in_addr*)
+                           host_entry->h_addr_list[0]));
 }
 
-// Wrapper for remove daemon
-// Takes ip address into account to calculate position
-// Position may change during simultaneous deletes
+// Remove daemon with specified ip from ring
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
     pthread_mutex_lock(&ring_lock);
-    remove_daemon_from_ring_assist(position_of_daemon(ip));
+    ring.erase(ring.begin() + position_of_daemon(ip));
+    printf("removed %s from ring\n", ip);
     pthread_mutex_unlock(&ring_lock);
 }
 
-void send_ring_to_new_daemon(int new_daemon_fd, sockaddr_in cliaddr) {
+void send_ring_to_new_daemon(char* new_daemon_ip) {
     // send size of ring 
     size_t ring_size = ring.size();
-    int n = sendto(new_daemon_fd, &ring_size, sizeof(size_t), 
-                    MSG_CONFIRM, (const struct sockaddr *) &cliaddr,  
-                    sizeof(cliaddr));
+    send_message(new_daemon_ip, &ring_size, sizeof(size_t), INTRODUCER_PORT);
     
+    // send contents of ring
     daemon_info daemons[ring_size];
     for (int i = 0; i < ring.size(); i++) {
         daemons[i] = ring[i];
     }
-    n = sendto(new_daemon_fd, daemons, sizeof(daemons), 
-                MSG_CONFIRM, (const struct sockaddr *) &cliaddr,  
-                sizeof(cliaddr));
-    // TODO check for sender error
+    send_message(new_daemon_ip, daemons, sizeof(daemon_info) * ring_size, INTRODUCER_PORT);
 }
 
-void send_to_daemon(char* ip, message_info send_msg) {
-     // create new socket to send
-    int sendfd; 
-    struct sockaddr_in sendaddr; 
-
-    // Creating socket file descriptor 
-    if ( (sendfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-        perror("socket creation failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-    memset(&sendaddr, 0, sizeof(sendaddr)); 
-        
-    // Filling server information 
-    sendaddr.sin_family = AF_INET; 
-    sendaddr.sin_port = htons(PORT); 
-    sendaddr.sin_addr.s_addr = inet_addr(ip); 
-
-    int n = sendto(sendfd, &send_msg, sizeof(struct message_info), 
-        MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
-        sizeof(sendaddr));
-    //TODO recv ACK?? 
-    close(sendfd);
-}
-
-void add_daemon_to_ring(message_info recv_msg, int new_daemon_fd, sockaddr_in cliaddr) {
+void introducer_handle_new_daemon(message_info recv_msg) {
     pthread_mutex_lock(&ring_lock); // lock for entire duration because position could chnage on simultaneous leave 
+    
     // formulate msg to send to all daemons 
     message_info send_msg = {};
     send_msg.message_code = JOIN; 
@@ -137,8 +137,9 @@ void add_daemon_to_ring(message_info recv_msg, int new_daemon_fd, sockaddr_in cl
     send_msg.timestamp = recv_msg.timestamp;
     strncpy(send_msg.daemon_ip, recv_msg.sender_ip, 16);
     for (daemon_info daemon : ring) {  // send new add info to all daemons 
-        send_to_daemon(daemon.ip, send_msg);
+        send_message(daemon.ip, &send_msg, sizeof(message_info), CHILD_PORT);
     }
+
     // add to local ring 
     daemon_info info = {}; 
     strncpy(info.ip, recv_msg.sender_ip, 16); 
@@ -146,7 +147,7 @@ void add_daemon_to_ring(message_info recv_msg, int new_daemon_fd, sockaddr_in cl
     ring.push_back(info);
 
     // send entire ring to new daemon 
-    send_ring_to_new_daemon(new_daemon_fd, cliaddr);
+    send_ring_to_new_daemon(recv_msg.sender_ip);
     pthread_mutex_unlock(&ring_lock);
 }
 
@@ -175,7 +176,7 @@ void* receive_pings (void* args) {
     // Filling server information 
     servaddr.sin_family    = AF_INET; // IPv4 
     servaddr.sin_addr.s_addr = INADDR_ANY; 
-    servaddr.sin_port = htons(PORT); 
+    servaddr.sin_port = htons(MAIN_PORT); 
         
     // Bind the socket with the server address 
     if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
@@ -209,23 +210,6 @@ void* receive_pings (void* args) {
     close(sockfd);
 
     return 0;
-}
-
-// gets this vms ip addr 
-char* get_vm_ip() {
-    // get VM ip (adapted from https://www.geeksforgeeks.org/c-program-display-hostname-ip-address/)
-    char hostbuffer[256];
-    char *vm_ip;
-    struct hostent *host_entry;
-    int hostname;
-    // To retrieve hostname
-    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
-    // To retrieve host information
-    host_entry = gethostbyname(hostbuffer);
-    // To convert an Internet network
-    // address into ASCII string
-    return inet_ntoa(*((struct in_addr*)
-                           host_entry->h_addr_list[0]));
 }
 
 int main(int argc, char *argv[]) {
@@ -283,7 +267,7 @@ int main(int argc, char *argv[]) {
         // handle recv mesg 
         if (recv_msg.message_code == JOIN) {
             printf("JOIN RECVd\n");
-            add_daemon_to_ring(recv_msg, sockfd, cliaddr);
+            introducer_handle_new_daemon(recv_msg);
         }
     }
     close(sockfd); 

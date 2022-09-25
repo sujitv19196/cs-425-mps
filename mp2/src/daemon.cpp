@@ -27,10 +27,9 @@
 // ===========================================================================================================
 
 // #define NUM_VMS 5
-constexpr int PORT = 8080;
-constexpr int INTRODUCER_PORT = 8001; 
-// constexpr int MAIN_PORT = 8080;
-// constexpr int CHILD_PORT = 8081;
+constexpr int MAIN_PORT = 8080;
+constexpr int CHILD_PORT = 8081;
+constexpr int INTRODUCER_PORT = 8002; 
 // constexpr int MSG_CONFIRM = 0;
 
 // Message codes
@@ -68,11 +67,29 @@ pthread_cond_t g5_cv;   // begin pinging once ring contains more than 5 daemons
 int targets[3] = {-1, -1, -1}; 
 size_t current_pos = -1;     // Position of ourself in ring (for easy indexing)
 char my_ip[IP_SIZE];   // IP address of ourself
-char introducer_ip[IP_SIZE] = "172.22.157.36"; // TODO PLACEHOLDER
+char introducer_ip[IP_SIZE] = "172.22.157.36";
 
 // ===========================================================================================================
 // Helper Functions
 // ===========================================================================================================
+
+// Send a message to a specific ip address
+int send_message(char dest_ip[16], void* message, size_t message_len, int port) {
+    int sockfd;
+    struct sockaddr_in remote = {0};
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("Leave sending: socket creation failed!"); 
+        exit(EXIT_FAILURE); 
+    } 
+    remote.sin_addr.s_addr = inet_addr(dest_ip); 
+    remote.sin_family    = AF_INET; // IPv4 
+    remote.sin_port = htons(port); 
+    connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
+
+    send(sockfd, message, message_len, 0);
+    close(sockfd);
+    return 0;
+}
 
 // Function to compare two IP addresses
 bool compare_ip(char* ip1, char* ip2) {
@@ -87,21 +104,6 @@ int position_of_daemon(char ip[IP_SIZE]) {
         }
     }
     return -1;  
-}
-
-// Function to add daemon to ring
-// Must also update targets
-void add_daemon_to_ring(daemon_info daemon) {
-    pthread_mutex_lock(&ring_lock);
-    ring.push_back(daemon);
-    targets[0] = (current_pos + 1) % ring.size();
-    targets[1] = (current_pos + 2) % ring.size();
-    targets[2] = (current_pos + 3) % ring.size();
-    if (ring.size() > 5) {
-        pthread_cond_signal(&g5_cv);    // signal that pinging may begin
-    }
-    printf("added %s to ring\n", daemon.ip);
-    pthread_mutex_unlock(&ring_lock);
 }
 
 // gets this vms ip addr 
@@ -124,21 +126,19 @@ char* get_vm_ip() {
                            host_entry->h_addr_list[0]));
 }
 
-// Send a message to a specific ip address
-int send_message(char dest_ip[16], void* message, size_t message_len, int port) {
-    int sockfd;
-    struct sockaddr_in remote = {0};
-    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-        perror("Leave sending: socket creation failed!"); 
-        exit(EXIT_FAILURE); 
-    } 
-    remote.sin_addr.s_addr = inet_addr(dest_ip); 
-    remote.sin_family    = AF_INET; // IPv4 
-    remote.sin_port = htons(port); 
-    connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
-
-    send(sockfd, message, message_len, 0);
-    return 0;
+// Function to add daemon to ring
+// Must also update targets
+void add_daemon_to_ring(daemon_info daemon) {
+    pthread_mutex_lock(&ring_lock);
+    ring.push_back(daemon);
+    targets[0] = (current_pos + 1) % ring.size();
+    targets[1] = (current_pos + 2) % ring.size();
+    targets[2] = (current_pos + 3) % ring.size();
+    if (ring.size() > 5) {
+        pthread_cond_signal(&g5_cv);    // signal that pinging may begin
+    }
+    printf("added %s to ring\n", daemon.ip);
+    pthread_mutex_unlock(&ring_lock);
 }
 
 // Send leave message to all other daemons
@@ -153,7 +153,7 @@ int send_leave(char leaving_ip[IP_SIZE]) {
             strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
             strncpy(send_msg.daemon_ip, leaving_ip, IP_SIZE);
 
-            send_message(d.ip, &send_msg, sizeof(message_info), PORT);
+            send_message(d.ip, &send_msg, sizeof(message_info), CHILD_PORT);
             printf("LEAVE notice sent to IP %s.\n", d.ip);
         }
     }
@@ -186,16 +186,21 @@ void remove_daemon_from_ring(char ip[IP_SIZE]) {
 
 // Handle ctrl+Z signal (server gracefully quitting)
 void sig_handler(int signum){    
+    std::cout << "Signal handler entered." << std::endl;
 
     if (signum == SIGTSTP) {
-        printf("SIGTSTP pressed. Attempting to leave gracefully ...");
+        printf("SIGTSTP pressed. Attempting to leave gracefully ...\n");
 
         // send leave notification to all daemons
         send_leave(my_ip);
 
         // exit gracefully
-        printf("Send leave notification to other daemons. Exiting program.");
+        printf("Send leave notification to other daemons. Exiting program.\n");
         exit(0);
+  }
+  else if (signum == SIGQUIT) {
+    printf("Quit!!!");
+    exit(0);
   }
 }
 
@@ -224,7 +229,7 @@ void* receive_pings (void* args) {
     // Filling server information 
     servaddr.sin_family    = AF_INET; // IPv4 
     servaddr.sin_addr.s_addr = INADDR_ANY; 
-    servaddr.sin_port = htons(PORT); 
+    servaddr.sin_port = htons(CHILD_PORT); 
         
     // Bind the socket with the server address 
     if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
@@ -251,21 +256,23 @@ void* receive_pings (void* args) {
             add_daemon_to_ring(info);
         } else if (msg.message_code == LEAVE) {
             remove_daemon_from_ring(msg.daemon_ip);
-        } 
-
-        // Acknowledge receipt of message (happens regardless of )
-        struct message_info send_msg; 
-        send_msg.message_code = ACK; 
-        strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
-        sendto(sockfd, &send_msg, sizeof(struct message_info),  
-            MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
-                len);
-        // printf("ACK sent\n");  
+        } else {
+            // Acknowledge receipt of ping (must send to MAIN_PORT)
+            struct message_info send_msg; 
+            send_msg.message_code = ACK; 
+            strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
+            send_message(msg.sender_ip, &send_msg, sizeof(message_info), MAIN_PORT);
+            printf("ACK sent\n");  
+        }   
     }
     close(sockfd);
 
     return 0;
 }
+
+// ==================================
+// Introducer (called by main thread)
+// ==================================
 
 // pings introdcuer to get the entire ring and its position in the ring
 void ping_introducer(char* vm_ip) {
@@ -291,10 +298,8 @@ void ping_introducer(char* vm_ip) {
     message_info send_msg = {};
     send_msg.message_code = JOIN; 
     strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
-    printf("send\n");
-    sendto(sockfd, &send_msg, sizeof(struct message_info), 
-            MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
-                sizeof(servaddr)); 
+    printf("Sending message to introducer.\n");
+    send_message(introducer_ip, &send_msg, sizeof(message_info), INTRODUCER_PORT);
     
     // recv size of ring
     size_t ring_size; 
@@ -314,6 +319,7 @@ void ping_introducer(char* vm_ip) {
         add_daemon_to_ring(daemons[i]);
     }
     // printf("%zu %s\n", ring_size, daemons[0].ip);
+    close(sockfd);
 }
 
 // ===========================================================================================================
@@ -327,6 +333,7 @@ void ping_introducer(char* vm_ip) {
 int main(int argc, char *argv[]) {
     // Set up signal handling
     signal(SIGTSTP, sig_handler);
+    signal(SIGQUIT, sig_handler);
 
     // Parse arguments
 	if (argc > 2) {
@@ -337,25 +344,27 @@ int main(int argc, char *argv[]) {
     std::cout << "Creating normal daemon (non-introducer)." << std::endl;
     
     // Get the ip of yourself
-    char* vm_ip = get_vm_ip();
-    strncpy(my_ip, vm_ip, IP_SIZE);
+    strncpy(my_ip, get_vm_ip(), IP_SIZE);
     printf("%s\n", my_ip);
 
     // Initialize mutex
     pthread_mutex_init(&ring_lock, NULL);
+    pthread_cond_init(&g5_cv, NULL);
 
     // talk to introducer 
-    ping_introducer(vm_ip);
+    printf("Pinging introducer ...\n");
+    // ping_introducer(my_ip);
+    printf("Successfully added to system!\n");
 
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
     pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
         
     // Don't start until ring size is greater than 5.
-    printf("Ring currently has %zu elements.\n", ring.size());
     
     pthread_mutex_lock(&ring_lock);
     while (ring.size() < 5) {
+        printf("System currently has %zu daemons.\n Cannot proceed until 5 daemons exist.", ring.size());
         pthread_cond_wait(&g5_cv, &ring_lock);
     }
     pthread_mutex_unlock(&ring_lock);
@@ -376,7 +385,7 @@ int main(int argc, char *argv[]) {
             
         // Filling server information 
         servaddr.sin_family = AF_INET; 
-        servaddr.sin_port = htons(PORT); 
+        servaddr.sin_port = htons(MAIN_PORT); 
         servaddr.sin_addr.s_addr = inet_addr(ring[targets[curr_daemon]].ip); 
         // servaddr.sin_addr.s_addr = inet_addr("localhost"); 
 
@@ -391,12 +400,10 @@ int main(int argc, char *argv[]) {
         message_info send_msg = {};
         send_msg.message_code = PING; 
         send_msg.timestamp = time(NULL);
-        strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
+        strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
         
-        // send PING to target proc 
-        sendto(sockfd, &send_msg, sizeof(struct message_info), 
-            MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
-                sizeof(servaddr)); 
+        // send PING to target proc (must be on CHILD_PORT)
+        send_message(ring[targets[curr_daemon]].ip, &send_msg, sizeof(message_info), CHILD_PORT);
         
         // recv message from proc 
         message_info recv_msg; 
@@ -430,5 +437,6 @@ int main(int argc, char *argv[]) {
     
     pthread_join(receive_thread, NULL);
     pthread_mutex_destroy(&ring_lock);
+    pthread_cond_destroy(&g5_cv);
 }
 
