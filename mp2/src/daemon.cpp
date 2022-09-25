@@ -97,10 +97,11 @@ void add_daemon_to_ring(daemon_info daemon) {
     targets[0] = (current_pos + 1) % ring.size();
     targets[1] = (current_pos + 2) % ring.size();
     targets[2] = (current_pos + 3) % ring.size();
-    if (ring.size() > 5) {
+    printf("added %s to ring\n", daemon.ip);
+    if (ring.size() >= 5) {
+        printf("Signalling that threshold of 5 has been met.\n");
         pthread_cond_signal(&g5_cv);    // signal that pinging may begin
     }
-    printf("added %s to ring\n", daemon.ip);
     pthread_mutex_unlock(&ring_lock);
 }
 
