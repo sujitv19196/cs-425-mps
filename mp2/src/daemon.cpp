@@ -142,16 +142,16 @@ int send_message(char dest_ip[16], void* message, size_t message_len, int port) 
 }
 
 // Send leave message to all other daemons
-int send_leave(char ip[IP_SIZE]) {
+int send_leave(char leaving_ip[IP_SIZE]) {
     // send leave message
     pthread_mutex_lock(&ring_lock);
     for (daemon_info d: ring) { // send to each daemon expect myself and the leaving daemon
-        if (d.ip != ip && d.ip != my_ip) {
+        if (d.ip != leaving_ip && d.ip != my_ip) {
             struct message_info send_msg; 
             send_msg.message_code = LEAVE; 
             send_msg.timestamp = time(NULL);
-            strncpy(send_msg.sender_ip, ip, IP_SIZE);
-            strncpy(send_msg.daemon_ip, d.ip, IP_SIZE);
+            strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
+            strncpy(send_msg.daemon_ip, leaving_ip, IP_SIZE);
 
             send_message(d.ip, &send_msg, sizeof(message_info), PORT);
             printf("LEAVE notice sent to IP %s.\n", d.ip);
