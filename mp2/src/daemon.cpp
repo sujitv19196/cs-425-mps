@@ -70,12 +70,15 @@ size_t current_pos = -1;     // Position of ourself in ring (for easy indexing)
 char my_ip[IP_SIZE];   // IP address of ourself
 char introducer_ip[IP_SIZE] = "172.22.157.36"; // TODO PLACEHOLDER
 
+pthread_mutex_t logfile_lock;
+
 // ===========================================================================================================
 // Helper Functions
 // ===========================================================================================================
 
 // Write to logfile
 void write_to_logfile(int message_code, char* ip, time_t timestamp) {
+    pthread_mutex_lock(&logfile_lock);
     FILE* f = fopen("logfile.txt", "a");
     fputc(message_code, f);
     fputs(" ", f);
@@ -84,6 +87,7 @@ void write_to_logfile(int message_code, char* ip, time_t timestamp) {
     fputc(timestamp, f);
     fputs("\n", f);
     fclose(f);
+    pthread_mutex_unlock(&logfile_lock);
 }
 
 // Function to compare two IP addresses
@@ -363,6 +367,8 @@ int main(int argc, char *argv[]) {
 
     // Initialize mutex
     pthread_mutex_init(&ring_lock, NULL);
+    pthread_mutex_init(&logfile_lock, NULL);
+    pthread_cond_init(&g5_cv, NULL);
 
     // talk to introducer 
     ping_introducer(vm_ip);
@@ -456,5 +462,8 @@ int main(int argc, char *argv[]) {
     
     pthread_join(receive_thread, NULL);
     pthread_mutex_destroy(&ring_lock);
+    pthread_mutex_destroy(&logfile_lock);
+    pthread_cond_destroy(&g5_cv);
+
 }
 
