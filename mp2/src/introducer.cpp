@@ -197,14 +197,14 @@ void* receive_pings (void* args) {
         //TODO might have to handle ADD in the futrue? although atm all adds happen here 
         if (msg.message_code == LEAVE) {
             remove_daemon_from_ring(msg.daemon_ip);
+        } else if (msg.message_code == PING) {
+            struct message_info send_msg; 
+            send_msg.message_code = ACK; 
+            sendto(sockfd, &send_msg, sizeof(struct message_info),  
+                MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
+                    len);
+            // printf("ACK sent\n");  
         }
-
-        struct message_info send_msg; 
-        send_msg.message_code = ACK; 
-        sendto(sockfd, &send_msg, sizeof(struct message_info),  
-            MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
-                len);
-        printf("ACK sent\n");  
     }
     close(sockfd);
 
