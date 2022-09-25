@@ -448,7 +448,7 @@ int main(int argc, char *argv[]) {
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
-        printf("hello ping\n");
+        // printf("hello ping\n");
 
         curr_daemon = (curr_daemon + 1) % 3; 
         close(sockfd); 
