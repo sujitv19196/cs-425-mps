@@ -180,7 +180,7 @@ void remove_daemon_from_ring_assist(size_t position) {
 // Position may change during simultaneous deletes
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
     remove_daemon_from_ring_assist(position_of_daemon(ip));
-    printf("removed %s to ring\n", ip);
+    printf("removed %s from ring\n", ip);
 }
 
 
@@ -339,7 +339,7 @@ int main(int argc, char *argv[]) {
     // Get the ip of yourself
     char* vm_ip = get_vm_ip();
     strncpy(my_ip, vm_ip, IP_SIZE);
-    printf("%s\n", vm_ip);
+    printf("%s\n", my_ip);
 
     // Initialize mutex
     pthread_mutex_init(&ring_lock, NULL);
