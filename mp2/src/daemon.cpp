@@ -180,7 +180,6 @@ void remove_daemon_from_ring_assist(size_t position) {
 // Position may change during simultaneous deletes
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
     remove_daemon_from_ring_assist(position_of_daemon(ip));
-    send_leave(ip);
     // printf("removed %s to ring\n", ip);
 }
 
@@ -411,6 +410,7 @@ int main(int argc, char *argv[]) {
                 // Then send fail message to every other daemon to do the same.
                 printf("Ping to daemon with ip %s timed out. Sending out failure notice.\n", ring[targets[curr_daemon]].ip);
                 remove_daemon_from_ring(ring[targets[curr_daemon]].ip);
+                send_leave(ring[targets[curr_daemon]].ip);
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
