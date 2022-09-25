@@ -238,12 +238,12 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&ring_lock, NULL);
 
     // add the introducer to the ring 
-    pthread_mutex_lock(&ring_lock);
-    daemon_info introducer = {};
-    strncpy(introducer.ip, get_vm_ip(), IP_SIZE);
+    //pthread_mutex_lock(&ring_lock);
+    //daemon_info introducer = {};
+    //strncpy(introducer.ip, get_vm_ip(), IP_SIZE);
     //TODO timestamp 
-    ring.push_back(introducer);
-    pthread_mutex_unlock(&ring_lock);
+    //ring.push_back(introducer);
+    //pthread_mutex_unlock(&ring_lock);
 
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
