@@ -420,8 +420,8 @@ int main(int argc, char *argv[]) {
 
         // set recv timeout 
         struct timeval tv;
-        tv.tv_sec = .5; // timeout of 1 sec 
-        tv.tv_usec = 0;
+        tv.tv_sec = 0; 
+        tv.tv_usec = 500000; // timeout of .5 sec 
         setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
         int n; 
