@@ -364,6 +364,7 @@ int main(int argc, char *argv[]) {
 
     int curr_daemon = 0; // current daemon we are pinging 
 
+    int retrasmit_threshold = 4; 
     while (running) {  // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
         int sockfd; 
         struct sockaddr_in servaddr; 
@@ -394,26 +395,30 @@ int main(int argc, char *argv[]) {
         send_msg.timestamp = time(NULL);
         strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
         
-        // send PING to target proc 
-        sendto(sockfd, &send_msg, sizeof(struct message_info), 
-            MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
-                sizeof(servaddr)); 
         
-        // recv message from proc 
-        message_info recv_msg; 
-        n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
-                    MSG_WAITALL, (struct sockaddr *) &servaddr, 
-                    &len); 
-        if (n == -1) {
-            if ((errno== EAGAIN) || (errno == EWOULDBLOCK)) {
-                // TIMEOUT!
-                // Must remove the target daemon from ring
-                // Then send fail message to every other daemon to do the same.
-                printf("Ping to daemon with ip %s timed out. Sending out failure notice.\n", ring[targets[curr_daemon]].ip);
-                char leaving_ip[IP_SIZE];
-                strncpy(leaving_ip, ring[targets[curr_daemon]].ip, IP_SIZE); 
-                send_leave(leaving_ip);
-                remove_daemon_from_ring(leaving_ip);
+        for (int i = 0; i < retrasmit_threshold; i++) {
+            // send PING to target proc 
+            sendto(sockfd, &send_msg, sizeof(struct message_info), 
+                MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
+                    sizeof(servaddr)); 
+            // recv message from proc 
+            message_info recv_msg; 
+            n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
+                        MSG_WAITALL, (struct sockaddr *) &servaddr, 
+                        &len); 
+            if (n == -1 && i == retrasmit_threshold-1) {
+                if ((errno== EAGAIN) || (errno == EWOULDBLOCK)) {
+                    // TIMEOUT!
+                    // Must remove the target daemon from ring
+                    // Then send fail message to every other daemon to do the same.
+                    printf("Ping to daemon with ip %s timed out. Sending out failure notice.\n", ring[targets[curr_daemon]].ip);
+                    char leaving_ip[IP_SIZE];
+                    strncpy(leaving_ip, ring[targets[curr_daemon]].ip, IP_SIZE); 
+                    send_leave(leaving_ip);
+                    remove_daemon_from_ring(leaving_ip);
+                }
+            } else if (n > 0) {
+                break;
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
