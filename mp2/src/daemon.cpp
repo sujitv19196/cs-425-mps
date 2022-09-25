@@ -80,13 +80,14 @@ pthread_mutex_t logfile_lock;
 void write_to_logfile(int message_code, char* ip, time_t timestamp) {
     pthread_mutex_lock(&logfile_lock);
     FILE* f = fopen("logfile.txt", "a");
-    fputc(message_code, f);
-    fputs(" ", f);
-    fputs(ip, f);
-    fputs(" ", f);
-    fputc(timestamp, f);
-    fputs("\n", f);
-    fclose(f);
+    fprintf(f, "%s %d %s %d\n", my_ip, message_code, ip, timestamp);
+    // fputc(message_code, f);
+    // fputs(" ", f);
+    // fputs(ip, f);
+    // fputs(" ", f);
+    // fputc(timestamp, f);
+    // fputs("\n", f);
+    // fclose(f);
     pthread_mutex_unlock(&logfile_lock);
 }
 
