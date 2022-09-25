@@ -409,8 +409,9 @@ int main(int argc, char *argv[]) {
                 // Must remove the target daemon from ring
                 // Then send fail message to every other daemon to do the same.
                 printf("Ping to daemon with ip %s timed out. Sending out failure notice.\n", ring[targets[curr_daemon]].ip);
-                send_leave(ring[targets[curr_daemon]].ip);
-                remove_daemon_from_ring(ring[targets[curr_daemon]].ip);
+                char* leaving_ip = ring[targets[curr_daemon]].ip; 
+                send_leave(leaving_ip);
+                remove_daemon_from_ring(leaving_ip);
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
