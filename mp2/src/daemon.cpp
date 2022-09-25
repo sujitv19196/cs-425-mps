@@ -300,7 +300,7 @@ void ping_introducer(char* vm_ip) {
     strncpy(send_msg.sender_ip, vm_ip, IP_SIZE);
     printf("Sending message to introducer.\n");
     send_message(introducer_ip, &send_msg, sizeof(message_info), INTRODUCER_PORT);
-    
+
     // recv size of ring
     size_t ring_size; 
     n = recvfrom(sockfd, &ring_size, sizeof(size_t),  
@@ -353,7 +353,7 @@ int main(int argc, char *argv[]) {
 
     // talk to introducer 
     printf("Pinging introducer ...\n");
-    // ping_introducer(my_ip);
+    ping_introducer(my_ip);
     printf("Successfully added to system!\n");
 
     // Create recv thread to recv pings and send back ACKs 

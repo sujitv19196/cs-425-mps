@@ -118,7 +118,6 @@ void send_ring_to_new_daemon(char* new_daemon_ip) {
     // send size of ring 
     size_t ring_size = ring.size();
     send_message(new_daemon_ip, &ring_size, sizeof(size_t), INTRODUCER_PORT);
-    
     // send contents of ring
     daemon_info daemons[ring_size];
     for (int i = 0; i < ring.size(); i++) {
@@ -221,13 +220,13 @@ int main(int argc, char *argv[]) {
     // Initialize mutex
     pthread_mutex_init(&ring_lock, NULL);
 
-    // add the introducer to the ring 
-    pthread_mutex_lock(&ring_lock);
-    daemon_info introducer = {};
-    strncpy(introducer.ip, get_vm_ip(), IP_SIZE);
-    //TODO timestamp 
-    ring.push_back(introducer);
-    pthread_mutex_unlock(&ring_lock);
+    // // add the introducer to the ring 
+    // pthread_mutex_lock(&ring_lock);
+    // daemon_info introducer = {};
+    // strncpy(introducer.ip, get_vm_ip(), IP_SIZE);
+    // //TODO timestamp 
+    // ring.push_back(introducer);
+    // pthread_mutex_unlock(&ring_lock);
 
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
