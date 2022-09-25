@@ -204,9 +204,12 @@ void remove_daemon_from_ring_assist(size_t position) {
 // Takes ip address into account to calculate position
 // Position may change during simultaneous deletes
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
-    remove_daemon_from_ring_assist(position_of_daemon(ip));
-    write_to_logfile(LEAVE, ip, time(NULL));
-    printf("removed %s from ring\n", ip);
+    int position = position_of_daemon(ip);
+    if (position != -1) {
+        remove_daemon_from_ring_assist(position);
+        write_to_logfile(LEAVE, ip, time(NULL));
+        printf("removed %s from ring\n", ip);
+    }
 }
 
 // Handle ctrl+Z signal (server gracefully quitting)
