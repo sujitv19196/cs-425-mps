@@ -66,7 +66,7 @@ pthread_cond_t g5_cv;   // begin pinging once ring contains more than 5 daemons
 // keep track of the positions of the 3 targets of the current daemon (basically next 3 in the ring)
 // we are keeping track of these separate from the ring because it's easier to lookup
 int targets[3] = {-1, -1, -1}; 
-size_t current_pos = -1;     // Position of ourself in ring (for easy indexing)
+int current_pos = -1;     // Position of ourself in ring (for easy indexing)
 char my_ip[IP_SIZE];   // IP address of ourself
 char introducer_ip[IP_SIZE] = "172.22.157.36"; // TODO PLACEHOLDER
 
@@ -111,9 +111,12 @@ int position_of_daemon(char ip[IP_SIZE]) {
 void add_daemon_to_ring(daemon_info daemon) {
     pthread_mutex_lock(&ring_lock);
     ring.push_back(daemon);
-    targets[0] = (current_pos + 1) % ring.size();
-    targets[1] = (current_pos + 2) % ring.size();
-    targets[2] = (current_pos + 3) % ring.size();
+    current_pos = position_of_daemon(my_ip);
+    if (current_pos != -1) {
+        targets[0] = (current_pos + 1) % ring.size();
+        targets[1] = (current_pos + 2) % ring.size();
+        targets[2] = (current_pos + 3) % ring.size();
+    }
     printf("added %s to ring\n", daemon.ip);
     write_to_logfile(JOIN, daemon.ip, time(NULL));
     if (ring.size() >= 5) {
@@ -331,9 +334,6 @@ void ping_introducer(char* vm_ip) {
             MSG_WAITALL, (struct sockaddr *) &servaddr, 
             &len); 
     
-    // update this VMs current pos 
-    current_pos = ring_size-1;
-
     daemon_info daemons[ring_size];
     n = recvfrom(sockfd, &daemons, sizeof(struct daemon_info) * ring_size,  
             MSG_WAITALL, (struct sockaddr *) &servaddr, 
