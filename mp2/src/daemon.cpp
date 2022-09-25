@@ -164,18 +164,19 @@ int send_message(char dest_ip[16], void* message, size_t message_len, int port) 
 int send_leave(char leaving_ip[IP_SIZE]) {
     // send leave message
     pthread_mutex_lock(&ring_lock);
+    struct message_info send_msg; 
+    send_msg.message_code = LEAVE; 
+    send_msg.timestamp = time(NULL);
+    strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
+    strncpy(send_msg.daemon_ip, leaving_ip, IP_SIZE);
     for (daemon_info d: ring) { // send to each daemon expect myself and the leaving daemon
         if (!compare_ip(d.ip, leaving_ip) && !compare_ip(d.ip, my_ip)) {
-            struct message_info send_msg; 
-            send_msg.message_code = LEAVE; 
-            send_msg.timestamp = time(NULL);
-            strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
-            strncpy(send_msg.daemon_ip, leaving_ip, IP_SIZE);
-
             send_message(d.ip, &send_msg, sizeof(message_info), PORT);
             printf("LEAVE notice sent to IP %s.\n", d.ip);
         }
     }
+    // send leave to introducer too 
+    send_message(introducer_ip, &send_msg, sizeof(message_info), PORT); 
     pthread_mutex_unlock(&ring_lock);
 
     write_to_logfile(LEAVE, my_ip, time(NULL));
@@ -339,6 +340,7 @@ void ping_introducer(char* vm_ip) {
             &len); 
     // TODO ADD ACKS AND RETRANSMITS 
     for (int i = 0; i < ring_size; i++) {
+        daemons[i].timestamp = time(NULL);
         add_daemon_to_ring(daemons[i]);
     }
     // printf("%zu %s\n", ring_size, daemons[0].ip);

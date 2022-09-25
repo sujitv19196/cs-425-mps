@@ -134,15 +134,16 @@ void add_daemon_to_ring(message_info recv_msg, int new_daemon_fd, sockaddr_in cl
     message_info send_msg = {};
     send_msg.message_code = JOIN; 
     send_msg.position = ring.size(); // add to back of ring 
-    send_msg.timestamp = recv_msg.timestamp;
+    send_msg.timestamp = time(NULL);
     strncpy(send_msg.daemon_ip, recv_msg.sender_ip, 16);
     for (daemon_info daemon : ring) {  // send new add info to all daemons 
         send_to_daemon(daemon.ip, send_msg);
     }
+
     // add to local ring 
     daemon_info info = {}; 
     strncpy(info.ip, recv_msg.sender_ip, 16); 
-    info.timestamp = recv_msg.timestamp; 
+    info.timestamp = time(NULL); 
     ring.push_back(info);
 
     // send entire ring to new daemon 
