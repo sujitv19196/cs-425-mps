@@ -25,10 +25,10 @@ constexpr int INTRODUCER_PORT = 8001;
 // constexpr int MSG_CONFIRM = 0;
 
 // Message codes
-constexpr char PING = 0;
-constexpr char ACK = 1;
-constexpr char JOIN = 2;
-constexpr char LEAVE = 3;
+constexpr int PING = 0;
+constexpr int ACK = 1;
+constexpr int JOIN = 2;
+constexpr int LEAVE = 3;
 
 // Other consts
 constexpr size_t IP_SIZE = 16;
@@ -36,7 +36,7 @@ constexpr size_t IP_SIZE = 16;
 // Structure of messages sent by daemon
 struct message_info {
     // general info
-    char message_code;
+    int message_code;
     time_t timestamp;
     char sender_ip[IP_SIZE];
 

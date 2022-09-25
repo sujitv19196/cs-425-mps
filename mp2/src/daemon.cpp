@@ -34,10 +34,10 @@ constexpr int INTRODUCER_PORT = 8001;
 // constexpr int MSG_CONFIRM = 0;
 
 // Message codes
-constexpr char PING = 0;
-constexpr char ACK = 1;
-constexpr char JOIN = 2;
-constexpr char LEAVE = 3;
+constexpr int PING = 0;
+constexpr int ACK = 1;
+constexpr int JOIN = 2;
+constexpr int LEAVE = 3;
 
 // Other consts
 constexpr size_t IP_SIZE = 16;
@@ -45,7 +45,7 @@ constexpr size_t IP_SIZE = 16;
 // Structure of messages sent by daemon
 struct message_info {
     // general info
-    char message_code;
+    int message_code;
     time_t timestamp;
     char sender_ip[IP_SIZE];
 
@@ -74,6 +74,18 @@ char introducer_ip[IP_SIZE] = "172.22.157.36"; // TODO PLACEHOLDER
 // Helper Functions
 // ===========================================================================================================
 
+// Write to logfile
+void write_to_logfile(int message_code, char* ip, time_t timestamp) {
+    FILE* f = fopen("logfile.txt", "a");
+    fputc(message_code, f);
+    fputs(" ", f);
+    fputs(ip, f);
+    fputs(" ", f);
+    fputc(timestamp, f);
+    fputs("\n", f);
+    fclose(f);
+}
+
 // Function to compare two IP addresses
 bool compare_ip(char* ip1, char* ip2) {
     return std::string(ip1) == std::string(ip2);
@@ -98,6 +110,7 @@ void add_daemon_to_ring(daemon_info daemon) {
     targets[1] = (current_pos + 2) % ring.size();
     targets[2] = (current_pos + 3) % ring.size();
     printf("added %s to ring\n", daemon.ip);
+    write_to_logfile(JOIN, daemon.ip, time(NULL));
     if (ring.size() >= 5) {
         printf("Signalling that threshold of 5 has been met.\n");
         pthread_cond_signal(&g5_cv);    // signal that pinging may begin
@@ -160,6 +173,8 @@ int send_leave(char leaving_ip[IP_SIZE]) {
     }
     pthread_mutex_unlock(&ring_lock);
 
+    write_to_logfile(LEAVE, my_ip, time(NULL));
+
     return 0;
 }
 
@@ -181,9 +196,9 @@ void remove_daemon_from_ring_assist(size_t position) {
 // Position may change during simultaneous deletes
 void remove_daemon_from_ring(char ip[IP_SIZE]) {
     remove_daemon_from_ring_assist(position_of_daemon(ip));
+    write_to_logfile(LEAVE, ip, time(NULL));
     printf("removed %s from ring\n", ip);
 }
-
 
 // Handle ctrl+Z signal (server gracefully quitting)
 void sig_handler(int signum){    
@@ -248,7 +263,7 @@ void* receive_pings (void* args) {
         if (msg.message_code == JOIN) {
             daemon_info info = {};
             strncpy(info.ip, msg.daemon_ip, IP_SIZE);
-            info.timestamp = msg.timestamp; 
+            info.timestamp = time(NULL); 
             add_daemon_to_ring(info);
         } else if (msg.message_code == LEAVE) {
             remove_daemon_from_ring(msg.daemon_ip);
@@ -337,6 +352,10 @@ int main(int argc, char *argv[]) {
     
     std::cout << "Creating normal daemon (non-introducer)." << std::endl;
     
+    // New logfile
+    FILE* f = fopen("logfile.txt", "w");
+    fclose(f);
+
     // Get the ip of yourself
     char* vm_ip = get_vm_ip();
     strncpy(my_ip, vm_ip, IP_SIZE);
@@ -422,6 +441,7 @@ int main(int argc, char *argv[]) {
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
+        printf("hello ping\n");
 
         curr_daemon = (curr_daemon + 1) % 3; 
         close(sockfd); 
