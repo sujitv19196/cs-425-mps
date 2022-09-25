@@ -414,6 +414,13 @@ int main(int argc, char *argv[]) {
 
         curr_daemon = (curr_daemon + 1) % 3; 
         close(sockfd); 
+
+        // stop pinging if ring < size 5 
+        pthread_mutex_lock(&ring_lock);
+        while (ring.size() < 5) {
+            pthread_cond_wait(&g5_cv, &ring_lock);
+        }
+        pthread_mutex_unlock(&ring_lock);
     }
     
     pthread_join(receive_thread, NULL);
