@@ -86,7 +86,7 @@ int position_of_daemon(char ip[IP_SIZE]) {
             return i;
         }
     }
-    return -1;
+    return -1;  
 }
 
 // Function to add daemon to ring
@@ -409,7 +409,8 @@ int main(int argc, char *argv[]) {
                 // Must remove the target daemon from ring
                 // Then send fail message to every other daemon to do the same.
                 printf("Ping to daemon with ip %s timed out. Sending out failure notice.\n", ring[targets[curr_daemon]].ip);
-                char* leaving_ip = ring[targets[curr_daemon]].ip; 
+                char leaving_ip[IP_SIZE];
+                strncpy(leaving_ip, ring[targets[curr_daemon]].ip, IP_SIZE); 
                 send_leave(leaving_ip);
                 remove_daemon_from_ring(leaving_ip);
             }
