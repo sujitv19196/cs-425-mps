@@ -298,9 +298,11 @@ void* receive_pings (void* args) {
         send_msg.message_code = ACK; 
         send_msg.timestamp = time(NULL);
         strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
-        sendto(sockfd, &send_msg, sizeof(struct message_info),  
-            MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
-                len);
+        for (int i = 0; i < 5; i++) {
+            sendto(sockfd, &send_msg, sizeof(struct message_info),  
+                MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
+                    len);
+        }
         // printf("ACK sent\n");  
     }
     close(sockfd);
@@ -465,8 +467,10 @@ int main(int argc, char *argv[]) {
                     send_leave(leaving_ip);
                     remove_daemon_from_ring(leaving_ip);
                 }
-            } else if (n > 0) {
+            } else if (n > 0 && recv_msg.message_code == ACK) {
                 break;
+            } else {
+                printf("CODE NOT ACK!!\n");
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
