@@ -27,10 +27,9 @@
 // ===========================================================================================================
 
 // #define NUM_VMS 5
-constexpr int PORT = 8080;
+constexpr int MAIN_PORT = 8080;
 constexpr int INTRODUCER_PORT = 8001; 
-// constexpr int MAIN_PORT = 8080;
-// constexpr int CHILD_PORT = 8081;
+constexpr int CHILD_PORT = 8082;
 // constexpr int MSG_CONFIRM = 0;
 
 // Message codes
@@ -174,12 +173,12 @@ int send_leave(char leaving_ip[IP_SIZE]) {
     strncpy(send_msg.daemon_ip, leaving_ip, IP_SIZE);
     for (daemon_info d: ring) { // send to each daemon expect myself and the leaving daemon
         if (!compare_ip(d.ip, leaving_ip) && !compare_ip(d.ip, my_ip)) {
-            send_message(d.ip, &send_msg, sizeof(message_info), PORT);
+            send_message(d.ip, &send_msg, sizeof(message_info), MAIN_PORT);
             printf("LEAVE notice sent to IP %s.\n", d.ip);
         }
     }
     // send leave to introducer too 
-    send_message(introducer_ip, &send_msg, sizeof(message_info), PORT); 
+    send_message(introducer_ip, &send_msg, sizeof(message_info), MAIN_PORT); 
     pthread_mutex_unlock(&ring_lock);
 
     write_to_logfile(LEAVE, my_ip, time(NULL));
@@ -263,7 +262,7 @@ void* receive_pings (void* args) {
     // Filling server information 
     servaddr.sin_family    = AF_INET; // IPv4 
     servaddr.sin_addr.s_addr = INADDR_ANY; 
-    servaddr.sin_port = htons(PORT); 
+    servaddr.sin_port = htons(MAIN_PORT); 
         
     // Bind the socket with the server address 
     if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
@@ -290,11 +289,14 @@ void* receive_pings (void* args) {
             add_daemon_to_ring(info);
         } else if (msg.message_code == LEAVE) {
             remove_daemon_from_ring(msg.daemon_ip);
-        } 
+        } else if (msg.message_code == ACK) {
+            printf("ACK STEAL!!!\n");
+        }
 
         // Acknowledge receipt of message (happens regardless of )
         struct message_info send_msg; 
         send_msg.message_code = ACK; 
+        send_msg.timestamp = time(NULL);
         strncpy(send_msg.sender_ip, my_ip, IP_SIZE);
         sendto(sockfd, &send_msg, sizeof(struct message_info),  
             MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
@@ -408,7 +410,7 @@ int main(int argc, char *argv[]) {
     int curr_daemon = 0; // current daemon we are pinging 
 
     int retrasmit_threshold = 8; 
-    while (running) {  // TODO while loop to send pings, update list, handle adds/deletes, detect failiures   
+    while (running) {
         int sockfd; 
         struct sockaddr_in servaddr; 
 
@@ -421,7 +423,7 @@ int main(int argc, char *argv[]) {
             
         // Filling server information 
         servaddr.sin_family = AF_INET; 
-        servaddr.sin_port = htons(PORT); 
+        servaddr.sin_port = htons(MAIN_PORT); 
         servaddr.sin_addr.s_addr = inet_addr(ring[targets[curr_daemon]].ip); 
         // servaddr.sin_addr.s_addr = inet_addr("localhost"); 
 
@@ -444,6 +446,7 @@ int main(int argc, char *argv[]) {
             sendto(sockfd, &send_msg, sizeof(struct message_info), 
                 MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
                     sizeof(servaddr)); 
+
             // recv message from proc 
             message_info recv_msg; 
             n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
@@ -454,9 +457,11 @@ int main(int argc, char *argv[]) {
                     // TIMEOUT!
                     // Must remove the target daemon from ring
                     // Then send fail message to every other daemon to do the same.
+                    pthread_mutex_lock(&ring_lock);
                     printf("Ping to daemon with ip %s timed out. Sending out failure notice.\n", ring[targets[curr_daemon]].ip);
                     char leaving_ip[IP_SIZE];
                     strncpy(leaving_ip, ring[targets[curr_daemon]].ip, IP_SIZE); 
+                    pthread_mutex_unlock(&ring_lock);
                     send_leave(leaving_ip);
                     remove_daemon_from_ring(leaving_ip);
                 }
