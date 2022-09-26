@@ -468,9 +468,7 @@ int main(int argc, char *argv[]) {
                 }
             } else if (recv_msg.message_code == ACK) {
                 break;
-            } else {
-                printf("CODE NOT ACK: %d\n", recv_msg.message_code);
-            }
+	    }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
         // printf("hello ping\n");
