@@ -470,7 +470,7 @@ int main(int argc, char *argv[]) {
             } else if (n > 0 && recv_msg.message_code == ACK) {
                 break;
             } else {
-                printf("CODE NOT ACK!!\n");
+                printf("CODE NOT ACK: %d\n", recv_msg.message_code);
             }
         }
         // printf("Server : %d\n", recv_msg.comm_type); 
