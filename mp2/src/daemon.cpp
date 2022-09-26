@@ -67,7 +67,7 @@ pthread_cond_t g5_cv;   // begin pinging once ring contains more than 5 daemons
 int targets[3] = {-1, -1, -1}; 
 int current_pos = -1;     // Position of ourself in ring (for easy indexing)
 char my_ip[IP_SIZE];   // IP address of ourself
-char introducer_ip[IP_SIZE] = "172.22.157.36"; // TODO PLACEHOLDER
+char introducer_ip[IP_SIZE] = "172.22.157.36"; 
 
 pthread_mutex_t logfile_lock;
 
@@ -196,7 +196,7 @@ void remove_daemon_from_ring_assist(size_t position) {
     targets[0] = (current_pos + 1) % ring.size();
     targets[1] = (current_pos + 2) % ring.size();
     targets[2] = (current_pos + 3) % ring.size();
-    pthread_mutex_unlock(&ring_lock); // TODO LOOK 
+    pthread_mutex_unlock(&ring_lock); 
 }
 
 // Wrapper for remove daemon
@@ -230,10 +230,10 @@ void sig_handler(int signum){
         for (daemon_info d: ring) {
             printf("%s %d\n", d.ip, d.timestamp);
         }
-	printf("Printing out targets:\n"); 
-	for (int i = 0; i < 3; i++) {
-	    printf("target %d; %s\n", targets[i], ring[targets[i]].ip); 
-	}
+	    printf("Printing out targets:\n"); 
+        for (int i = 0; i < 3; i++) {
+            printf("target %d; %s\n", targets[i], ring[targets[i]].ip); 
+        }
     }
 }
 
@@ -289,9 +289,7 @@ void* receive_pings (void* args) {
             add_daemon_to_ring(info);
         } else if (msg.message_code == LEAVE) {
             remove_daemon_from_ring(msg.daemon_ip);
-        } else if (msg.message_code == ACK) {
-            printf("ACK STEAL!!!\n");
-        }
+        } 
 
         // Acknowledge receipt of message (happens regardless of )
         struct message_info send_msg; 
@@ -303,7 +301,6 @@ void* receive_pings (void* args) {
                 MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
                     len);
         }
-        // printf("ACK sent\n");  
     }
     close(sockfd);
 
@@ -327,8 +324,6 @@ void ping_introducer(char* vm_ip) {
     servaddr.sin_port = htons(INTRODUCER_PORT); 
     servaddr.sin_addr.s_addr = inet_addr(introducer_ip); 
     
-    //TODO add timeout and retrasmit on introducer
-
     int n; 
     socklen_t len; 
     message_info send_msg = {};
@@ -349,12 +344,10 @@ void ping_introducer(char* vm_ip) {
     n = recvfrom(sockfd, &daemons, sizeof(struct daemon_info) * ring_size,  
             MSG_WAITALL, (struct sockaddr *) &servaddr, 
             &len); 
-    // TODO ADD ACKS AND RETRANSMITS 
     for (int i = 0; i < ring_size; i++) {
         daemons[i].timestamp = time(NULL);
         add_daemon_to_ring(daemons[i]);
     }
-    // printf("%zu %s\n", ring_size, daemons[0].ip);
 }
 
 // ===========================================================================================================
@@ -397,7 +390,7 @@ int main(int argc, char *argv[]) {
 
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
-    pthread_create(&receive_thread, NULL, receive_pings, NULL); // TODO add args 
+    pthread_create(&receive_thread, NULL, receive_pings, NULL);
         
     // Don't start until ring size is greater than 5.
     printf("Ring currently has %zu elements.\n", ring.size());
@@ -468,11 +461,9 @@ int main(int argc, char *argv[]) {
                 }
             } else if (recv_msg.message_code == ACK) {
                 break;
-	    }
+	        }
         }
-        // printf("Server : %d\n", recv_msg.comm_type); 
-        // printf("hello ping\n");
-
+    
         curr_daemon = (curr_daemon + 1) % 3; 
         close(sockfd); 
 

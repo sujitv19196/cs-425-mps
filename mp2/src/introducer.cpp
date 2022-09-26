@@ -101,7 +101,6 @@ void send_ring_to_new_daemon(int new_daemon_fd, sockaddr_in cliaddr) {
     n = sendto(new_daemon_fd, daemons, sizeof(daemons), 
                 MSG_CONFIRM, (const struct sockaddr *) &cliaddr,  
                 sizeof(cliaddr));
-    // TODO check for sender error
 }
 
 void send_to_daemon(char* ip, message_info send_msg) {
@@ -124,7 +123,6 @@ void send_to_daemon(char* ip, message_info send_msg) {
     int n = sendto(sendfd, &send_msg, sizeof(struct message_info), 
         MSG_CONFIRM, (const struct sockaddr *) &sendaddr,  
         sizeof(sendaddr));
-    //TODO recv ACK?? 
     close(sendfd);
 }
 
@@ -195,7 +193,6 @@ void* receive_pings (void* args) {
                 &len); 
         printf("pinged by: %s\n", msg.sender_ip); 
 
-        //TODO might have to handle ADD in the futrue? although atm all adds happen here 
         if (msg.message_code == LEAVE) {
             remove_daemon_from_ring(msg.daemon_ip);
         } else if (msg.message_code == PING) {
@@ -204,7 +201,6 @@ void* receive_pings (void* args) {
             sendto(sockfd, &send_msg, sizeof(struct message_info),  
                 MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
                     len);
-            // printf("ACK sent\n");  
         }
     }
     close(sockfd);
@@ -237,14 +233,6 @@ int main(int argc, char *argv[]) {
     
     // Initialize mutex
     pthread_mutex_init(&ring_lock, NULL);
-
-    // add the introducer to the ring 
-    //pthread_mutex_lock(&ring_lock);
-    //daemon_info introducer = {};
-    //strncpy(introducer.ip, get_vm_ip(), IP_SIZE);
-    //TODO timestamp 
-    //ring.push_back(introducer);
-    //pthread_mutex_unlock(&ring_lock);
 
     // Create recv thread to recv pings and send back ACKs 
     pthread_t receive_thread; 
