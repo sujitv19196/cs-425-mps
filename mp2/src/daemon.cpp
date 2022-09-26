@@ -435,7 +435,6 @@ int main(int argc, char *argv[]) {
         tv.tv_usec = 500000; // timeout of .5 sec 
         setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
-        int n; 
         socklen_t len; 
         message_info send_msg = {};
         send_msg.message_code = PING; 
@@ -451,7 +450,7 @@ int main(int argc, char *argv[]) {
 
             // recv message from proc 
             message_info recv_msg; 
-            n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
+            int n = recvfrom(sockfd, &recv_msg, sizeof(struct message_info),  
                         MSG_WAITALL, (struct sockaddr *) &servaddr, 
                         &len); 
             if (n == -1 && i == retrasmit_threshold-1) {
@@ -467,7 +466,7 @@ int main(int argc, char *argv[]) {
                     send_leave(leaving_ip);
                     remove_daemon_from_ring(leaving_ip);
                 }
-            } else if (n > 0 && recv_msg.message_code == ACK) {
+            } else if (recv_msg.message_code == ACK) {
                 break;
             } else {
                 printf("CODE NOT ACK: %d\n", recv_msg.message_code);
